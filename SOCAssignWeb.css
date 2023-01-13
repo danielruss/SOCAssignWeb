@@ -1,0 +1,117 @@
+.nav-link.dropdown-toggle::after {
+    content: none;
+}
+
+.font75 {
+    font-size: 0.75rem;
+}
+
+.flex-equal {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0%;
+}
+
+textarea {
+    resize: none;
+    overflow: auto;
+    padding: 3px;
+    width: 100%;
+}
+
+#soccerResultsHead th {
+    position: sticky;
+    background-color: white;
+    top: 0;
+}
+
+#soccerResultsBody tr.selected {
+    background-color: lightgreen;
+}
+
+.annotated::before{
+    content: "\2611";
+}
+.not-annotated::before{
+    content: "\2610";
+}
+
+.redflag::before {
+    content: "\2691";
+    color: red;
+}
+
+.infoflag::before {
+    content: "";
+    display: inline-block;
+    height: 1em;
+    width: 1em;
+    background-size: 1em 1em;
+    background-repeat: no-repeat;
+    background-image: url('img/info-circle-fill.svg');
+    opacity: 1;
+}
+
+.infoflag:hover::before path {
+    fill: red
+}
+
+.nowrap,
+table.table-sort th {
+    white-space: nowrap;
+}
+
+table.table-sort .noSort:after {
+    content: "";
+    display: inline-block;
+    height: 0.75em;
+    width: 0.75em;
+    background-size: 0.75em 0.75em;
+    background-repeat: no-repeat;
+    background-image: url('img/up-and-down-arrow.svg');
+}
+
+table.table-sort .sortUp::after {
+    content: "";
+    display: inline-block;
+    height: 0.75em;
+    width: 0.75em;
+    background-size: 0.75em 0.75em;
+    background-repeat: no-repeat;
+    background-image: url('img/up-arrow.svg');
+}
+
+table.table-sort .sortDown::after {
+    content: "";
+    display: inline-block;
+    height: 0.75em;
+    width: 0.75em;
+    background-size: 0.75em 0.75em;
+    background-repeat: no-repeat;
+    background-image: url('img/down-arrow.svg');
+}
+
+table.table-sort td::after {
+    display: inline-block;
+}
+
+.treeview,
+.treeview ul {
+    list-style-type: none;
+}
+
+.treeview .caret-up::before {
+    display: inline-block;
+    content: '\2295';
+    padding-right: 2px;
+}
+
+.treeview .caret-down::before {
+    display: inline-block;
+    content: '\2296';
+    padding-right: 2px;
+}
+
+.treeview .caret-up+ul {
+    display: none;
+}
