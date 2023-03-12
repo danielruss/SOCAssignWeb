@@ -7,7 +7,7 @@ let params = {
 
 function buildMenuItem(textItem, callback) {
     let aElement = document.createElement("a");
-    aElement.innerText = textItem;
+    aElement.innerHTML = textItem;
 
     let liElement = document.createElement("li");
     liElement.classList.add("nav-item");
@@ -26,7 +26,7 @@ function buildMenuDropdown(text) {
     let aElement = document.createElement("a");
     aElement.classList.add("nav-link", "dropdown-toggle", "font75");
     aElement.dataset.bsToggle = "dropdown";
-    aElement.innerText = text;
+    aElement.innerHTML = text;
 
     let ulElement = document.createElement("ul");
     ulElement.classList.add("dropdown-menu")
@@ -34,6 +34,12 @@ function buildMenuDropdown(text) {
     liElement.insertAdjacentElement("beforeend", aElement);
     liElement.insertAdjacentElement("beforeend", ulElement);
     return liElement;
+}
+
+function clearDropDown(navItemElement){
+    // get the ul from the navItemElement (which should have class of dropdown-menu)
+    let ulElement = navItemElement.querySelector(".dropdown-menu")
+    ulElement.innerText=""
 }
 
 function addNavItemToDropDown(navItemElement, text, callback) {
@@ -88,7 +94,7 @@ function addTextToDropdown(navItemElement, text) {
     ulElement.insertAdjacentElement("beforeend", liElement)
 }
 
-async function addLocalForageData(navItemElement) {
+async function addLocalForageDataToFileMenu(navItemElement) {
     let fileDB = await getStoreDB()
     let stores = await fileDB.keys();
 
@@ -102,12 +108,14 @@ async function addLocalForageData(navItemElement) {
         addNavItemToDropDown(navItemElement, store, async () => {
             let soccerResults = await getDataFromLocalForage(store)
             buildSoccerResultsTable(soccerResults)
+            document.title=`SOCAssign: ${store}`
         });
     })
 }
 
 function clearLocalForageData() {
     let fileMenuElement = document.querySelector("#file-menu")
+    if (!fileMenuElement) return
 
     let stores = JSON.parse(fileMenuElement.dataset.stores)
     fileMenuElement.dataset.stores = '[]'
@@ -125,6 +133,42 @@ function showModal1() {
     myModal.show()
 }
 
+function showAboutSOCAssign(){
+    document.getElementById("ModalSaveButton").classList.add("d-none")
+    document.getElementById("ModalCloseButton").classList.remove("d-none")
+    document.querySelector(".modal-title").innerText = "About SOCAssign";
+    document.querySelector(".modal-body").innerHTML = 
+    `<p>SOCAssign is an application to assist expert review of SOCcer Results.  SOCAssign read SOCcer (csv/json) 
+    output and display the top 10 SOCcer assignments for each job description to the coder for assessment. 
+    Before importing, the SOCcer results can be preprocessed to focus the expert review on a subset of 
+    job descriptions, such as job 
+    descriptions with SOC codes that are tied for the highest score or that had low SOCcer scores. 
+    For each job description, SOCAssign will allow the selection of  up to 3 SOC-2010 codes. 
+    The code scan be selected from the SOCcer output list, from a list of all SOC-2010 codes, 
+    or manually entered. A validation check ensures that only valid SOC-2010 can be entered. </p>
+    <p>This application was designed with privacy in mind.  Data never leaves your browser, until you choose to 
+    download the results.</p>`
+    let myModal = new bootstrap.Modal(document.getElementById("myModal"), { backdrop: "static", keyboard: false });
+    myModal.show()
+}
+
+
+function rebuildFileMenu(fileMenuElement){
+    // clear the stores in the File menu
+    //clearLocalForageData()
+    fileMenuElement = fileMenuElement ?? document.getElementById("file-menu");
+    if (!fileMenuElement){
+        throw new Error(" === ERROR: Could not find the File Menu ===" )
+    }
+    clearDropDown(fileMenuElement)
+    addNavItemToDropDown(fileMenuElement, "Open CSV", loadCSVFile)
+    addNavItemToDropDown(fileMenuElement, "Open JSON", loadJSONFile)
+    addNavItemToDropDown(fileMenuElement, "Export CSV", exportCSVFile)
+    addNavItemToDropDown(fileMenuElement, "Export JSON", exportJSONFile)
+    addLocalForageDataToFileMenu(fileMenuElement)
+
+}
+
 function buildNavbar() {
     let nav = document.querySelector("nav")
     // add a toggler to handle small factors.
@@ -140,24 +184,27 @@ function buildNavbar() {
 
     let fileMenuElement = buildMenuDropdown("File")
     fileMenuElement.id = "file-menu"
-    addNavItemToDropDown(fileMenuElement, "Open CSV", loadCSVFile)
-    addNavItemToDropDown(fileMenuElement, "Open JSON", loadJSONFile)
-    addNavItemToDropDown(fileMenuElement, "Export CSV", exportCSVFile)
-    addNavItemToDropDown(fileMenuElement, "Export JSON", exportJSONFile)
-//    addNavItemToDropDown(fileMenuElement, "Show Modal", showModal1)
-    addLocalForageData(fileMenuElement)
-
-
-
+    rebuildFileMenu(fileMenuElement)
+    
     let editMenuElement = buildMenuDropdown("Edit")
+    addNavItemToDropDown(editMenuElement,"Remove Current Data",removeCurrentStore)
     addNavItemToDropDown(editMenuElement, "Copy")
     addNavItemToDropDown(editMenuElement, "Paste")
-
+    
+    
+    let soccerMenuElement = buildMenuDropdown('&#x26bd;')
+    addNavItemToDropDown(soccerMenuElement,"About SOCAssign",showAboutSOCAssign)
+    
+    menuBarElement.insertAdjacentElement("beforeend", soccerMenuElement)
     menuBarElement.insertAdjacentElement("beforeend", fileMenuElement)
     menuBarElement.insertAdjacentElement("beforeend", editMenuElement)
+    
 
     deactivateMenuItem("Export CSV")
     deactivateMenuItem("Export JSON")
+    deactivateMenuItem("Copy")
+    deactivateMenuItem("Paste")
+    deactivateMenuItem("Remove Current Data")
 }
 
 async function getStoreDB() {
@@ -212,12 +259,10 @@ async function addJSONResultsToLocalForage(json) {
 
     // let everyone know the store name.
     setStoreName(storeName)
-    // clear the stores in the File menu
-    clearLocalForageData()
-    // add back all the stores in the file menu
-    addLocalForageData(document.querySelector("#file-menu"))
 
+    activateMenuItem("Export CSV")
     activateMenuItem("Export JSON")
+    activateMenuItem("Remove Current Data")
     buildSoccerResultsTable(results)
 }
 
@@ -238,19 +283,55 @@ async function loadJSONFile(event) {
         let [newHandle] = await window.showOpenFilePicker(options)
         let file = await newHandle.getFile()
         await parseJSON(file)
-
+        document.title = `SOCAssign: ${file.name}`;
     } catch (error) {
         console.error(error)
     }
 }
 // FILE > EXPORT CSV
 async function exportCSVFile(event) {
-    let results = await getDataFromLocalForage()
+    let results = await getDataFromLocalForage();
+    let csvdata=results.data.map( (r,indx) => {
+        // make a deep copy of the row...
+        let nv = JSON.parse(JSON.stringify(r));
+        delete nv.assignments
+        delete nv.flags
+        nv.coder_1 = r.assignments.codes.length>0 ? r.assignments.codes[0] : "",
+        nv.coder_2 = r.assignments.codes.length>1 ? r.assignments.codes[1] : "",
+        nv.coder_3 = r.assignments.codes.length>2 ? r.assignments.codes[2] : ""
+        if (indx<3) console.log(nv)
+        return nv
+    } )
+    let csv = Papa.unparse(csvdata)
+    try {
+        let options = {
+            types: [{
+                description: 'CSV file',
+                accept: { 'text/csv': ['.csv'] },
+            }],
+        }
+        let newHandle = await window.showSaveFilePicker(options)
+        let writableStream = await newHandle.createWritable();
+        const blob = new Blob([csv], {
+            type: "text/csv",
+        });
+        await writableStream.write(blob);
+        await writableStream.close();
+
+    } catch (error) {
+        if (error instanceof TypeError) {
+            console.log("Your browser does not support File saving.  Using File Download")
+            fileDownload()
+            return
+        }
+        console.error(error)
+    }
 }
 
 async function fileDownload() {
     throw new Error("File Download not Yet supported")
 }
+
 // FILE > EXPORT JSON
 async function exportJSONFile(event) {
     // get the results from Local Forage
@@ -319,8 +400,11 @@ function parseCSV(file) {
             console.log(`=== finished parsing ${file.name} ===`)
 
             setStoreName(file.name)
+            activateMenuItem("Export CSV")
             activateMenuItem("Export JSON")
+            activateMenuItem("Remove Current Data")
             buildSoccerResultsTable({ fields: fields, data: results.data, metadata: { storeName: file.name } })
+            document.title=document.title=`SOCAssign: ${file.name}`
         }
     })
 }
@@ -348,6 +432,9 @@ async function getDataFromLocalForage(storeName, n) {
     })
 
     activateMenuItem("Export JSON")
+    activateMenuItem("Export CSV")
+    activateMenuItem("Remove Current Data")
+
     return soccerResults
 }
 
@@ -404,6 +491,14 @@ function sortTable(col, direction, data) {
     return data.sort(mySort)
 }
 
+function clearSoccerResultsTable(){
+    let element = document.getElementById("soccerResultsBody")
+    element.innerText = ""
+    element = document.getElementById("soccerResultsHead")
+    element.innerText = ""
+    document.getElementById("centerColumn").classList.add("invisible")
+    document.title="SOCAssign"
+}
 function fillSoccerResultsTable(soccerResults) {
     let tableBody = document.getElementById("soccerResultsBody")
     tableBody.innerText = ""
@@ -457,6 +552,12 @@ function fillSoccerResultsTable(soccerResults) {
             let previousResults = await getResult(row.Id)
             buildAssignmentTable(previousResults)
 
+            // remove the border class from old id...
+            let selectedRow = document.querySelector("tr.selectedRow")
+            if (selectedRow) selectedRow.classList.remove("selectedRow")
+            selectedRow=document.querySelector(`tr[data-id="${row.Id}"`)
+            selectedRow?.classList.add('selectedRow')
+
             // let the soccer dataset know which row is selected for flagging...
             tableBody.parentElement.dataset.selectedId = row.Id
         })
@@ -468,7 +569,6 @@ function fillSoccerResultsTable(soccerResults) {
     buildRankTable()
     buildJobDescriptionTable()
 }
-
 
 function makeFlagString(flags) {
     let circleClass = (flags.selected) ? "bi-check-circle" : "bi-circle"
@@ -592,8 +692,25 @@ async function storeResults(id, results, storeName) {
         storeName: storeName
     })
     await store.setItem(id, results);
+    getStoreDB()
 }
+async function removeCurrentStore(){
+    let storeName = getStoreName();
+    let storeDB = await getStoreDB()
+    console.log(storeDB)
+    await storeDB.removeItem(storeName)
+                .catch(error => console.error(error))
 
+    await localforage.dropInstance({
+        name: "SOCAssign",
+        storeName: storeName
+      }).then(function() {
+        console.log('Dropped otherStore')
+      });
+
+    clearSoccerResultsTable()
+    rebuildFileMenu()
+}
 
 function buildAssignmentTable(results) {
     let selections = results.assignments.codes;
@@ -880,6 +997,7 @@ function buildUI() {
     handleFileDrop()
     handleAssignmentMove()
     buildTreeView()
+    document.title="SOCAssign"
 }
 
 let soc2010_lookup = {};

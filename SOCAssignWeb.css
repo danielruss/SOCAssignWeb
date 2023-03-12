@@ -61,6 +61,12 @@ table.table-sort th {
     white-space: nowrap;
 }
 
+
+#soccerResultsBody > tr.selectedRow {
+    background-color: slategray;
+    color: gainsboro;
+}
+
 table.table-sort .noSort:after {
     content: "";
     display: inline-block;
