@@ -299,6 +299,8 @@ async function exportCSVFile(event) {
         nv.coder_1 = r.assignments.codes.length>0 ? r.assignments.codes[0] : "",
         nv.coder_2 = r.assignments.codes.length>1 ? r.assignments.codes[1] : "",
         nv.coder_3 = r.assignments.codes.length>2 ? r.assignments.codes[2] : ""
+        nv.comment = r.assignments.comment ?? ""
+        nv.redflag = r.flags.redflag
         if (indx<3) console.log(nv)
         return nv
     } )
@@ -343,6 +345,7 @@ async function exportJSONFile(event) {
                 description: 'JSON file',
                 accept: { 'application/json': ['.json'] },
             }],
+            suggestedName: results.metadata.storeName.replace(/\.csv/,"_socassign.json")
         }
         let newHandle = await window.showSaveFilePicker(options)
         let writableStream = await newHandle.createWritable();
@@ -364,6 +367,8 @@ async function exportJSONFile(event) {
 
 function parseCSV(file) {
     console.log(`parsing ${file.name}`)
+    // show the loader...
+    document.querySelector(".loader").classList.remove("d-none")
     Papa.parse(file, {
         header: true,
         complete: async function (results) {
@@ -405,6 +410,8 @@ function parseCSV(file) {
             activateMenuItem("Remove Current Data")
             buildSoccerResultsTable({ fields: fields, data: results.data, metadata: { storeName: file.name } })
             document.title=document.title=`SOCAssign: ${file.name}`
+            // turn off the loader...
+            document.querySelector(".loader").classList.add("d-none")
         }
     })
 }
@@ -914,7 +921,7 @@ function handleFileDrop() {
         parseCSV(selectedFile)
     })
 
-    let row = document.querySelector(".row")
+    let row = document.querySelector(".left-column")
     row.addEventListener("dragover", (event) => {
         event.preventDefault();
         row.classList.add("border", "border-5")

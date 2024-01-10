@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="./SOCAssignWeb.css">
+    <link rel="stylesheet" href="./SOCAssignWeb_grid.css">
+    <script src="./SOCAssignWeb.js"></script>
+</head>
+
+<body>
+    <input type="file" class="d-none" id="csvFileButton">
+    <div class="loader d-none"></div>
+    <div class="page">
+        <nav class="navbar navbar-expand-sm navbar-dark bg-dark text-white font50 top-row"></nav>
+        
+            <div class="left-column bg-light border overflow-auto">
+                <table class="table table-sm table-striped table-hover table-sort font75" id="soccerResultsTable">
+                    <thead id="soccerResultsHead"></thead>
+                    <tbody id="soccerResultsBody"></tbody>
+                </table>
+            </div>
+
+            <div id="centerColumn" class="center-column d-flex flex-column p-0 h-100 invisible overflow-scroll">
+                <div class="d-flex"><input id="soc2010_input" class="font75 flex-grow-1" list="soc2010" autocomplete="off" placeholder="Enter SOC 2010 code"><input type="button" value="+"></div>
+                <datalist class="font75" id="soc2010"></datalist>
+                <div class="flex-fill flex-equal border">
+                    <table id="AssignmentTable" class="table table-sm table-striped font75 overflow-hidden">
+                        <tr id="head"><th>Assignments</th></tr>
+                        <tr id="sel1" draggable="true"><td nowrap>&nbsp;</td></tr>
+                        <tr id="sel2" draggable="true"><td nowrap>&nbsp;</td></tr>
+                        <tr id="sel3" draggable="false"><td nowrap>&nbsp;</td></tr>
+                    </table>
+                </div>
+                <div class="flex-fill flex-equal border">
+                    <table id="JobDescriptionTable" class="table table-sm table-striped font75 overflow-auto">
+                    </table>
+                </div>
+                <div class="flex-fill flex-equal border">
+                    <p class="font75 fw-bold">Comments</p>
+                    <textarea id="comment" class="font75" rows=5 ></textarea>
+                </div>
+                <div class="flex-fill flex-equal border">
+                    <table class="table table-sm table-striped table-hover font75" id="rankTable">
+                        <thead id="rankHead">
+                        </thead>
+                        <tbody id="rankBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="right-column overflow-scroll bg-light">
+                <ul class="treeview font75 overflow-auto"></ul>
+            </div>
+        
+
+        <footer class="font-monospace font75 p-1">
+            <div>File: </div>
+        </footer>
+    </div>
+
+
+    <!-- A modal -->
+    <div id="myModal" class="modal fade" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Modal title</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">Add your body content here here</div>
+                <div class="modal-footer">
+                    <button id="ModalCloseButton" type="button" class="btn btn-secondary d-none" data-bs-dismiss="modal">Close</button>
+                    <button id="ModalSaveButton" type="button" class="btn btn-primary d-none" data-bs-dismiss="modal">Save changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"
+    integrity="sha512-SGWgwwRA8xZgEoKiex3UubkSkV1zSE1BS6O4pXcaxcNtUlQsOmOmhVnDwIvqGRfEmuz83tIGL13cXMZn6upPyg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous">
+    </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"
+    integrity="sha512-+BMamP0e7wn39JGL8nKAZ3yAQT2dL5oaXWr4ZYlTGkKOaoXM/Yj7c4oy50Ngz5yoUutAG17flueD4F6QpTlPng=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+</html>
