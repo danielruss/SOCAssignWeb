@@ -1,3 +1,31 @@
+.page {
+    display: grid;
+    grid-template-columns: 40vw 30vw 30vw;
+    grid-template-rows: 5vh 90vh 5vh;
+    grid-template-areas:
+    'head       head   head'
+    'autocoding center codingsystem'
+    'status     status status';
+  }
+  
+  .top-row {
+      grid-area: head;
+  }
+  .left-column {
+      grid-area: autocoding;
+  }
+  
+  .center-column {
+      grid-area: center;
+  }
+  
+  .right-column {
+      grid-area: codingsystem;
+  }
+  footer{
+      grid-area: status;
+  }
+
 .nav-link.dropdown-toggle::after {
     content: none;
 }
@@ -29,6 +57,10 @@ textarea {
     background-color: lightgreen;
 }
 
+#rowSpan {
+    min-width: 40rem;
+    text-align: center;
+}
 .annotated::before{
     content: "\2611";
 }

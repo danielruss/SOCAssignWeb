@@ -227,6 +227,7 @@ async function parseJSON(file){
 async function addJSONResultsToLocalForage(json) {
     let results = JSON.parse(json)
     let storeName = results.metadata.storeName;
+    let table_start = results.metadata?.table_start ?? 0
 
     let storeDB = await getStoreDB()
     let dt = await storeDB.getItem(storeName)
@@ -245,7 +246,10 @@ async function addJSONResultsToLocalForage(json) {
         }
     }
     // add the file the storeNames
-    storeDB.setItem(storeName, new Date().toString())
+    storeDB.setItem(storeName, {
+        "create_date":new Date().toString(),
+        "table_start":table_start
+    })
 
     // create a store for the data..
     let indexDB = await localforage.createInstance({
@@ -375,8 +379,10 @@ function parseCSV(file) {
             // localforage does not maintain a list of stores...
             // so create a new data store for it...
             let fileDB = await getStoreDB()
-            fileDB.setItem(file.name, new Date().toString())
-
+            fileDB.setItem(file.name, {
+                "create_date":new Date().toString(),
+                "table_start":0
+            })
             let indexDB = await localforage.createInstance({
                 name: "SOCAssign",
                 storeName: file.name
@@ -506,12 +512,53 @@ function clearSoccerResultsTable(){
     document.getElementById("centerColumn").classList.add("invisible")
     document.title="SOCAssign"
 }
-function fillSoccerResultsTable(soccerResults) {
+function addNavEventListener(){
+    document.getElementById("startButton").addEventListener("click",async (event)=>{
+        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        await setSoccerResultsTableStart( 0 )
+        fillSoccerResultsTable(latestSoccerResults)
+    })
+    document.getElementById("prevButton").addEventListener("click",async (event)=>{
+        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        await setSoccerResultsTableStart( Math.max(0,parseInt(event.target.dataset.currentStart) - parseInt(event.target.dataset.numberOfVisibleRows)) )
+        fillSoccerResultsTable(latestSoccerResults)
+    })
+    document.getElementById("nextButton").addEventListener("click",async (event)=>{
+        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        await setSoccerResultsTableStart( Math.min(latestSoccerResults.data.length,parseInt(event.target.dataset.currentStart) + parseInt(event.target.dataset.numberOfVisibleRows) ) )
+        fillSoccerResultsTable(latestSoccerResults)
+    })
+    document.getElementById("endButton").addEventListener("click",async (event)=>{
+        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        await setSoccerResultsTableStart( latestSoccerResults.data.length - parseInt(event.target.dataset.numberOfVisibleRows??1)  )
+        fillSoccerResultsTable(latestSoccerResults)
+    })
+}
+async function fillSoccerResultsTable(soccerResults) {
     let tableBody = document.getElementById("soccerResultsBody")
     tableBody.innerText = ""
 
+    let startAtLine = await getSoccerResultsTableStart()
+    let numRows = 150
+    let endAtLine = Math.min(soccerResults.data.length,startAtLine+numRows)
+
+    console.log(`Display from [${startAtLine},${endAtLine})`)
+    if (numRows < soccerResults.data.length){
+        // add 1 because people consider the first row as 1 not 0
+        document.getElementById("rowSpan").innerHTML=`rows: ${startAtLine+1} &rarr; ${endAtLine+1} of ${soccerResults.data.length}`
+    }else{
+        document.getElementById("rowSpan").innerText=""
+    }
+
+    for (let index=startAtLine;index<endAtLine;index++){
+        let row = soccerResults.data[index]
+/* 
+    had to  remove the forEach because it was WAY.. to slow.
+
     soccerResults.data.forEach((row, index, all) => {
-        if (!row.Id) return;
+        //if (!row.Id) return;
+        // only show 1 page
+        //if (index < startAtLine || index > endAtLine) return*/
 
         // for each row create a cell for each column
         let rowElement = document.createElement("tr")
@@ -569,12 +616,43 @@ function fillSoccerResultsTable(soccerResults) {
             tableBody.parentElement.dataset.selectedId = row.Id
         })
         tableBody.insertAdjacentElement("beforeend", rowElement);
-    })
-
+    }
+    displayNavButtons(startAtLine,endAtLine,soccerResults.data.length,numRows)
 
 
     buildRankTable()
     buildJobDescriptionTable()
+}
+
+function displayNavButtons(currentStart,currentEnd,dataLength,visibleRows){
+    console.log(`NavButtons: ${currentStart}, ${currentEnd},${visibleRows}`)
+    let startButton = document.getElementById("startButton")
+    let prevButton = document.getElementById("prevButton")
+    let nextButton = document.getElementById("nextButton")
+    let endButton = document.getElementById("endButton")
+
+    prevButton.dataset.currentStart=currentStart
+    prevButton.dataset.numberOfVisibleRows=visibleRows
+
+    nextButton.dataset.currentStart=currentStart
+    nextButton.dataset.numberOfVisibleRows=visibleRows
+    endButton.dataset.numberOfVisibleRows=visibleRows
+    
+    if (currentStart>0){
+        startButton.classList.remove("invisible")
+        prevButton.classList.remove("invisible")
+    }else{
+        startButton.classList.add("invisible")
+        prevButton.classList.add("invisible")
+    }
+    if (currentEnd<dataLength){
+        nextButton.classList.remove("invisible") 
+        endButton.classList.remove("invisible")    
+    }else{
+        nextButton.classList.add("invisible")  
+        endButton.classList.add("invisible")
+    }
+    
 }
 
 function makeFlagString(flags) {
@@ -866,6 +944,21 @@ function clearCenterColumn() {
     buildRankTable()
 }
 
+async function getSoccerResultsTableStart(){
+    let storeName = getStoreName()
+    let storeDB = await getStoreDB()
+    let metadata = await storeDB.getItem(storeName)
+    console.log(`returned TABLE START: ${metadata.table_start}`)
+    return metadata.table_start ?? 0
+}
+async function setSoccerResultsTableStart(value){
+    let storeName = getStoreName()
+    let storeDB = await getStoreDB()
+    let metadata = await storeDB.getItem(storeName)
+    metadata.table_start=value
+    await storeDB.setItem(storeName,metadata)
+    console.log(`NEW TABLE START: ${value}`)
+}
 
 function addFlagColumn(flagClass,sortCol,row){
     let thElement = document.createElement("th")
@@ -874,7 +967,9 @@ function addFlagColumn(flagClass,sortCol,row){
     row.insertAdjacentElement("afterbegin",thElement)
 }
 
+
 function buildSoccerResultsTable(soccerResults) {
+    
     let tableHead = document.getElementById("soccerResultsHead")
     createTableHead(tableHead, soccerResults.fields)
     Array.from(tableHead.children[0].children).forEach(thElement => {
@@ -904,6 +999,7 @@ function buildSoccerResultsTable(soccerResults) {
 
             let latestSoccerResults = await getDataFromLocalForage(getStoreName())
             latestSoccerResults.data = sortTable(th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data)
+            setSoccerResultsTableStart(0)
             fillSoccerResultsTable(latestSoccerResults)
         })
     })
@@ -1004,6 +1100,7 @@ function buildUI() {
     handleFileDrop()
     handleAssignmentMove()
     buildTreeView()
+    addNavEventListener()
     document.title="SOCAssign"
 }
 

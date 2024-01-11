@@ -11,18 +11,18 @@
 
 <body>
     <input type="file" class="d-none" id="csvFileButton">
-    <div class="container-fluid d-flex flex-column vh-100 p-0">
-        <nav class="navbar navbar-expand-sm navbar-dark bg-dark text-white font50 w-100"></nav>
-        <div class="flex-fill row overflow-auto">
-
-            <div class="col-5 h-100 bg-light border overflow-auto">
+    <div class="loader d-none"></div>
+    <div class="page">
+        <nav class="navbar navbar-expand-sm navbar-dark bg-dark text-white font50 top-row"></nav>
+        
+            <div class="left-column bg-light border overflow-auto">
                 <table class="table table-sm table-striped table-hover table-sort font75" id="soccerResultsTable">
                     <thead id="soccerResultsHead"></thead>
                     <tbody id="soccerResultsBody"></tbody>
                 </table>
             </div>
 
-            <div id="centerColumn" class="col-4 d-flex flex-column p-0 h-100 invisible overflow-scroll">
+            <div id="centerColumn" class="center-column d-flex flex-column p-0 h-100 invisible overflow-scroll">
                 <div class="d-flex"><input id="soc2010_input" class="font75 flex-grow-1" list="soc2010" autocomplete="off" placeholder="Enter SOC 2010 code"><input type="button" value="+"></div>
                 <datalist class="font75" id="soc2010"></datalist>
                 <div class="flex-fill flex-equal border">
@@ -51,13 +51,19 @@
                 </div>
             </div>
 
-            <div class="col-3 overflow-scroll bg-light p-1 h-100">
-                <ul class="treeview font75 overflow-scroll"></ul>
+            <div class="right-column overflow-scroll bg-light">
+                <ul class="treeview font75 overflow-auto"></ul>
             </div>
-        </div>
+        
 
-        <footer class="row font-monospace font75 p-1">
-            <div class="col-6 ">File: </div>
+        <footer class="font-monospace font75 p-1">
+            <span>File: </span>
+            <button id="startButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&laquo;</button>
+            <button id="prevButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&lt;</button>
+            <span id="rowSpan"></span>
+            <button id="nextButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&gt;</button>            
+            <button id="endButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&raquo;</button>
+
         </footer>
     </div>
 
