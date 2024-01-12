@@ -287,6 +287,7 @@ async function loadJSONFile(event) {
         let [newHandle] = await window.showOpenFilePicker(options)
         let file = await newHandle.getFile()
         await parseJSON(file)
+        rebuildFileMenu()
         document.title = `SOCAssign: ${file.name}`;
     } catch (error) {
         console.error(error)
@@ -305,7 +306,6 @@ async function exportCSVFile(event) {
         nv.coder_3 = r.assignments.codes.length>2 ? r.assignments.codes[2] : ""
         nv.comment = r.assignments.comment ?? ""
         nv.redflag = r.flags.redflag
-        if (indx<3) console.log(nv)
         return nv
     } )
     let csv = Papa.unparse(csvdata)
@@ -415,6 +415,7 @@ function parseCSV(file) {
             activateMenuItem("Export JSON")
             activateMenuItem("Remove Current Data")
             buildSoccerResultsTable({ fields: fields, data: results.data, metadata: { storeName: file.name } })
+            rebuildFileMenu()
             document.title=document.title=`SOCAssign: ${file.name}`
             // turn off the loader...
             document.querySelector(".loader").classList.add("d-none")
@@ -542,10 +543,9 @@ async function fillSoccerResultsTable(soccerResults) {
     let numRows = 150
     let endAtLine = Math.min(soccerResults.data.length,startAtLine+numRows)
 
-    console.log(`Display from [${startAtLine},${endAtLine})`)
     if (numRows < soccerResults.data.length){
         // add 1 because people consider the first row as 1 not 0
-        document.getElementById("rowSpan").innerHTML=`rows: ${startAtLine+1} &rarr; ${endAtLine+1} of ${soccerResults.data.length}`
+        document.getElementById("rowSpan").innerHTML=`rows: ${startAtLine+1} &rarr; ${endAtLine} of ${soccerResults.data.length}`
     }else{
         document.getElementById("rowSpan").innerText=""
     }
@@ -625,7 +625,6 @@ async function fillSoccerResultsTable(soccerResults) {
 }
 
 function displayNavButtons(currentStart,currentEnd,dataLength,visibleRows){
-    console.log(`NavButtons: ${currentStart}, ${currentEnd},${visibleRows}`)
     let startButton = document.getElementById("startButton")
     let prevButton = document.getElementById("prevButton")
     let nextButton = document.getElementById("nextButton")
@@ -782,7 +781,6 @@ async function storeResults(id, results, storeName) {
 async function removeCurrentStore(){
     let storeName = getStoreName();
     let storeDB = await getStoreDB()
-    console.log(storeDB)
     await storeDB.removeItem(storeName)
                 .catch(error => console.error(error))
 
@@ -790,7 +788,7 @@ async function removeCurrentStore(){
         name: "SOCAssign",
         storeName: storeName
       }).then(function() {
-        console.log('Dropped otherStore')
+        console.log(`Dropped ${storeName}`)
       });
 
     clearSoccerResultsTable()
@@ -948,8 +946,8 @@ async function getSoccerResultsTableStart(){
     let storeName = getStoreName()
     let storeDB = await getStoreDB()
     let metadata = await storeDB.getItem(storeName)
-    console.log(`returned TABLE START: ${metadata.table_start}`)
-    return metadata.table_start ?? 0
+    metadata.table_start = metadata?.table_start ?? 0
+    return metadata.table_start
 }
 async function setSoccerResultsTableStart(value){
     let storeName = getStoreName()
@@ -957,7 +955,6 @@ async function setSoccerResultsTableStart(value){
     let metadata = await storeDB.getItem(storeName)
     metadata.table_start=value
     await storeDB.setItem(storeName,metadata)
-    console.log(`NEW TABLE START: ${value}`)
 }
 
 function addFlagColumn(flagClass,sortCol,row){
