@@ -376,6 +376,7 @@ function parseCSV(file) {
     Papa.parse(file, {
         header: true,
         complete: async function (results) {
+            console.log(results)
             // localforage does not maintain a list of stores...
             // so create a new data store for it...
             let fileDB = await getStoreDB()
@@ -552,18 +553,14 @@ async function fillSoccerResultsTable(soccerResults) {
 
     for (let index=startAtLine;index<endAtLine;index++){
         let row = soccerResults.data[index]
-/* 
-    had to  remove the forEach because it was WAY.. to slow.
-
-    soccerResults.data.forEach((row, index, all) => {
-        //if (!row.Id) return;
-        // only show 1 page
-        //if (index < startAtLine || index > endAtLine) return*/
 
         // for each row create a cell for each column
         let rowElement = document.createElement("tr")
         rowElement.dataset.id = row.Id
 
+        if (!row.flags){
+            console.log(row)
+        }
         // create the flags
         Object.keys(row.flags).forEach( (flag,index) =>{
             rowElement.insertAdjacentElement("beforeend", document.createElement("td"))
@@ -682,32 +679,37 @@ function buildRankTable(result) {
     fillRankTable(result)
 }
 
+function getSoccerKeys(result){
+    let scores=[]
+    let soc2010=[]
+    let score_regex = /score_\d+/i
+    let soc2010_regex = /soc2010_\d+/i
+    for (col in result){
+        if (score_regex.test(col)) scores.push(col)
+        if (soc2010_regex.test(col)) soc2010.push(col)
+    }
+    return {score_keys:scores,soc2010_keys:soc2010}
+}
 function fillRankTable(result) {
     let tableBody = document.getElementById("rankBody")
     tableBody.innerText = ""
-    for (let rank = 1; rank <= 10; rank++) {
-        let tableRow = document.createElement("tr");
-        let rankCol = document.createElement("td")
+    if (!result) return
+    let {score_keys,soc2010_keys} = getSoccerKeys(result)
+    for (let rank=1; rank<=soc2010_keys.length;rank++){
+        let tableRow = tableBody.insertRow()
+        let rankCol = tableRow.insertCell();
         rankCol.innerHTML = (result) ? rank : "&nbsp;"
-        tableRow.insertAdjacentElement("beforeend", rankCol)
 
-        let scoreCol = document.createElement("td")
-        scoreCol.innerHTML = (result) ? result[`Score_${rank}`] : "&nbsp;"
-        tableRow.insertAdjacentElement("beforeend", scoreCol)
+        let scoreCol = tableRow.insertCell();
+        scoreCol.innerHTML = result[score_keys[rank-1]]
 
-        let codeCol = document.createElement("td")
-        let titleCol = document.createElement("td")
-        if (result) {
-            let codeKey = (`SOC2010_${rank}` in result) ? `SOC2010_${rank}` : `soc2010_${rank}`
-            codeCol.innerText = result[codeKey];
-            codeCol.classList.add("nowrap")
-            titleCol.innerText = soc2010_lookup.codes[result[codeKey]].title
-        } else {
-            codeCol.innerHTML = "&nbsp;"
-        }
-        tableRow.insertAdjacentElement("beforeend", codeCol)
-        tableRow.insertAdjacentElement("beforeend", titleCol)
 
+        let code = result[soc2010_keys[rank-1]]
+        let codeCol = tableRow.insertCell();
+        codeCol.innerText = code;
+        codeCol.classList.add("nowrap")
+        let titleCol = tableRow.insertCell();
+        titleCol.innerText = soc2010_lookup.codes[code].title
 
         tableRow.addEventListener("click", (event) => {
             assignCode(result.Id, event.target.parentElement.children[2].innerText)
@@ -736,7 +738,7 @@ async function fillCommentTextArea(storeName, id) {
     let datalist = document.getElementById("soc2010")
     datalist.innerText = ""
 
-    soc2010_input.onkeyup = (event) => {
+    soc2010_input.onkeyup = async (event) => {
         datalist.innerText = ""
         if (soc2010_input.value.length > 1 && soc2010_input.value.length < 7) {
             Object.keys(soc2010_lookup.codes)
@@ -744,6 +746,12 @@ async function fillCommentTextArea(storeName, id) {
                 .forEach(key => {
                     datalist.insertAdjacentHTML("beforeend", `<option value="${key}">`)
                 })
+        }
+        if (soc2010_lookup.codes.hasOwnProperty(soc2010_input.value) && event.key == "Enter") {
+            event.preventDefault()
+            await assignCode(id, soc2010_input.value);
+            soc2010_input.value = "";
+            datalist.innerText = ""
         }
     }
 
