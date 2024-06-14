@@ -1,10 +1,15 @@
 .page {
     display: grid;
+    height: 100vh;
     grid-template-columns: 40vw 30vw 30vw;
-    grid-template-rows: 5vh 90vh 5vh;
+    grid-template-rows: 5vh 5vh 6em 7em 15vh auto 5vh;
     grid-template-areas:
     'head       head   head'
-    'autocoding center codingsystem'
+    'autocoding inputSection codingsystem'
+    'autocoding assignments codingsystem'
+    'autocoding jobDescription codingsystem'
+    'autocoding comments codingsystem'
+    'autocoding singlejob codingsystem'
     'status     status status';
   }
   
@@ -14,25 +19,53 @@
   .left-column {
       grid-area: autocoding;
   }
-  
-  .center-column {
-      grid-area: center;
+  .inputSection {
+      grid-area: inputSection;
+      margin-left: 3px;
   }
-  
+
+  .assignments {
+      grid-area: assignments;
+      overflow: hidden;
+      margin-left: 3px;
+  }
+
+  .jobDescription {
+      grid-area: jobDescription;
+      overflow: hidden;
+      margin-left: 3px;
+  }
+
+  .comments {
+      grid-area: comments;
+      box-sizing: border-box;
+      margin-left: 3px;
+      padding-bottom: 4px;
+      overflow: auto;
+  }
+
+  .singlejob {
+      grid-area: singlejob;
+      padding-top: 4px;
+      box-sizing: border-box;
+      overflow-y: auto;
+  }
+
   .right-column {
       grid-area: codingsystem;
   }
-  footer{
+
+  footer {
       grid-area: status;
   }
 
-.nav-link.dropdown-toggle::after {
-    content: none;
-}
+  .nav-link.dropdown-toggle::after {
+      content: none;
+  }
 
-.font75 {
-    font-size: 0.75rem;
-}
+  .font75 {
+      font-size: 0.75rem;
+  }
 
 .flex-equal {
     flex-grow: 1;

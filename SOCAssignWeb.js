@@ -1,4 +1,4 @@
-console.log("... in SOCAssignWeb.js ...")
+console.log("... in SA.js ...")
 
 let params = {
     soccerTableRow: 10,
@@ -227,7 +227,7 @@ async function parseJSON(file){
 async function addJSONResultsToLocalForage(json) {
     let results = JSON.parse(json)
     let storeName = results.metadata.storeName;
-    let table_start = results.metadata?.table_start ?? 0
+    let table_start = results.metadata?.table_start || 0
 
     let storeDB = await getStoreDB()
     let dt = await storeDB.getItem(storeName)
@@ -511,27 +511,39 @@ function clearSoccerResultsTable(){
     element.innerText = ""
     element = document.getElementById("soccerResultsHead")
     element.innerText = ""
-    document.getElementById("centerColumn").classList.add("invisible")
+    Array.from(getCenterElements()).forEach((x)=>x.classList.add("invisible"))
     document.title="SOCAssign"
 }
+function getSortColumn(){
+    let sortColumn = document.getElementById("soccerResultsHead").querySelector("[data-sort-direction]")
+    return sortColumn?.dataset;
+}
 function addNavEventListener(){
-    document.getElementById("startButton").addEventListener("click",async (event)=>{
+    async function _get_data(){
         let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        let sortInfo = getSortColumn()
+        if (sortInfo){//th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data
+            latestSoccerResults.data = sortTable(sortInfo.sortColumn,sortInfo.sortDirection,latestSoccerResults.data)
+        }
+        return latestSoccerResults;
+    }
+    document.getElementById("startButton").addEventListener("click",async (event)=>{
+        let latestSoccerResults = await _get_data()
         await setSoccerResultsTableStart( 0 )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("prevButton").addEventListener("click",async (event)=>{
-        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        let latestSoccerResults = await _get_data()
         await setSoccerResultsTableStart( Math.max(0,parseInt(event.target.dataset.currentStart) - parseInt(event.target.dataset.numberOfVisibleRows)) )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("nextButton").addEventListener("click",async (event)=>{
-        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        let latestSoccerResults = await _get_data()
         await setSoccerResultsTableStart( Math.min(latestSoccerResults.data.length,parseInt(event.target.dataset.currentStart) + parseInt(event.target.dataset.numberOfVisibleRows) ) )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("endButton").addEventListener("click",async (event)=>{
-        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        let latestSoccerResults = await _get_data()
         await setSoccerResultsTableStart( latestSoccerResults.data.length - parseInt(event.target.dataset.numberOfVisibleRows??1)  )
         fillSoccerResultsTable(latestSoccerResults)
     })
@@ -553,6 +565,7 @@ async function fillSoccerResultsTable(soccerResults) {
 
     for (let index=startAtLine;index<endAtLine;index++){
         let row = soccerResults.data[index]
+        row.flags=row.flags??{}
 
         // for each row create a cell for each column
         let rowElement = document.createElement("tr")
@@ -566,14 +579,14 @@ async function fillSoccerResultsTable(soccerResults) {
             rowElement.insertAdjacentElement("beforeend", document.createElement("td"))
         })
         if (row.flags.selected) rowElement.classList.add("selected")
-        rowElement.children[0].classList.add(row.flags.selected?"annotated":"not-annotated")
+        rowElement.children[0].classList.add((row.flags?.selected)?"annotated":"not-annotated")
         if (row.flags.redflag) rowElement.children[1].classList.add("redflag")
         if (row.flags.comments) rowElement.children[2].classList.add("infoflag")
 
 
         soccerResults.fields.forEach(col => {
             let colElement = document.createElement("td")
-            if (!isNaN(row[col])) {
+            if (!isNaN(row[col]) || col=="Id") {
                 colElement.setAttribute("nowrap", true)
                 if (/[Ss]core_/.test(col)) {
                     row[col] = parseFloat(row[col]).toFixed(4)
@@ -586,7 +599,7 @@ async function fillSoccerResultsTable(soccerResults) {
         // create a event listenter for when a row is clicked...
         rowElement.addEventListener("click", async (event) => {
             // this really only needs to be done once.
-            document.getElementById("centerColumn").classList.remove("invisible")
+            Array.from(getCenterElements()).forEach((x) => x.classList.remove("invisible"))
 
             // build the rank table...
             let rankTableHead = document.getElementById("rankHead")
@@ -673,6 +686,10 @@ function updateFlag(id, flags) {
     if (flags.comments) rowElement.children[2].classList.add("infoflag")
 }
 
+function getCenterElements(){
+    return document.querySelectorAll(".inputSection,.assignments,.jobDescription,.comments,.singlejob")
+}
+
 function buildRankTable(result) {
     let rankTableHead = document.getElementById("rankHead")
     createTableHead(rankTableHead, ['Rank', 'Score', 'Code', 'Title'])
@@ -756,7 +773,7 @@ async function fillCommentTextArea(storeName, id) {
     }
 
     //handle user typing value
-    soc2010_input.parentElement.querySelector("input[type='button']").onclick = async (event) => {
+    soc2010_input.parentElement.querySelector("button").onclick = async (event) => {
         if (soc2010_lookup.codes.hasOwnProperty(soc2010_input.value)) {
             await assignCode(id, soc2010_input.value);
             soc2010_input.value = "";
@@ -840,6 +857,31 @@ function buildAssignmentTable(results) {
                 let down = (index < (selectionsMade - 1)) ? `<i class="p-0 bi bi-arrow-down-circle-fill text-primary" data-id=${results.Id}  data-selection-index="${index}"></i>` : ''
                 trElement.children[0].innerHTML = `<i class="p-0 bi bi-x-circle-fill text-primary" data-id=${results.Id}  data-selection-index="${index}"></i>${up}${down}`;
                 trElement.children[1].innerText = `${selection} ${soc2010_lookup.codes[selection].title}`;
+                let timeoutid=0;
+                let popup = null;
+                trElement.children[1].addEventListener("mouseenter",(event)=>{
+//                    console.log(`in ${trElement.children[1].innerText}`)
+                    if (timeoutid){
+                        clearTimeout(timeoutid);
+                        timeoutid = 0;
+                    }
+                    timeoutid = setTimeout( ()=>{
+                        popup = document.createElement("div")
+                        popup.style=`position:absolute;left:${event.clientX}px;top:${event.clientY}px;z-index:2;background-color:Beige;padding:5px;border:thin black solid;`
+                        popup.innerText=soc2010_lookup.codes[selection].title
+                        document.body.appendChild(popup)
+                    },1000)
+                })
+                trElement.children[1].addEventListener("mouseout",(event)=>{
+//                    console.log(`left ${trElement.children[1].innerText}`)
+                    if (timeoutid) {
+                        clearTimeout(timeoutid)
+                        timeoutid = 0                        
+                    }
+                    if (popup?.parentElement){
+                        popup.parentElement.removeChild(popup)
+                    }
+                })
                 trElement.setAttribute("draggable", true)
             }
             tableElement.insertAdjacentElement("beforeend", trElement)
@@ -1061,8 +1103,10 @@ function handleAssignmentMove() {
 function buildTreeView() {
     function addAndClick(code) {
         let soc2010_input = document.getElementById("soc2010_input")
-        soc2010_input.value = code.slice(0, 7)
-        soc2010_input.nextSibling.click()
+        if (!soc2010_input.classList.contains("invisible")){
+            soc2010_input.value = code.slice(0, 7)
+            soc2010_input.nextElementSibling.click()
+        }
     }
     function buildNodes(object, root) {
         let liElement = document.createElement("li");
@@ -1073,7 +1117,7 @@ function buildTreeView() {
             liElement.classList.add("caret-up")
             liElement.addEventListener("click", (event) => {
                 if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
-                    if (!document.getElementById("centerColumn").classList.contains("invisible")) {
+                    if (!document.querySelector(".inputSection").classList.contains("invisible")) {
                         addAndClick(liElement.innerText)
                     }
                 } else {

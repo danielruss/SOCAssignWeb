@@ -14,48 +14,60 @@
     <div class="loader d-none"></div>
     <div class="page">
         <nav class="navbar navbar-expand-sm navbar-dark bg-dark text-white font50 top-row"></nav>
+
+        <div class="left-column bg-light border overflow-auto">
+            <table class="table table-sm table-striped table-hover table-sort font75" id="soccerResultsTable">
+                <thead id="soccerResultsHead"></thead>
+                <tbody id="soccerResultsBody"></tbody>
+            </table>
+        </div>
+
+        <div class="inputSection input-group invisible">
+            <input type="text" id="soc2010_input" class="font75 form-control" list="soc2010" autocomplete="off" placeholder="Enter SOC 2010 code">
+            <button class="btn" type="button">+</button>
+            <datalist class="font75" id="soc2010"></datalist>
+        </div>
+
+        <div class="assignments invisible">
+            <table id="AssignmentTable" class="table table-sm table-striped font75 overflow-hidden">
+                <tr id="head">
+                    <th>Assignments</th>
+                </tr>
+                <tr id="sel1" draggable="true">
+                    <td nowrap>&nbsp;</td>
+                </tr>
+                <tr id="sel2" draggable="true">
+                    <td nowrap>&nbsp;</td>
+                </tr>
+                <tr id="sel3" draggable="false">
+                    <td nowrap>&nbsp;</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="jobDescription invisible">
+            <table id="JobDescriptionTable" class="table table-sm table-striped font75 overflow-auto">
+            </table>
+        </div>
+
+        <div class="comments invisible">
+            <label class="font75 fw-bold">Comments</label>
+            <textarea id="comment" class="font75" rows=5></textarea>
+        </div>
+
+        <div class="singlejob invisible">
+            <table class="table table-sm table-striped table-hover font75" id="rankTable">
+                <thead id="rankHead">
+                </thead>
+                <tbody id="rankBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div class="right-column overflow-scroll">
+            <ul class="treeview font75 overflow-auto"></ul> 
+        </div>
         
-            <div class="left-column bg-light border overflow-auto">
-                <table class="table table-sm table-striped table-hover table-sort font75" id="soccerResultsTable">
-                    <thead id="soccerResultsHead"></thead>
-                    <tbody id="soccerResultsBody"></tbody>
-                </table>
-            </div>
-
-            <div id="centerColumn" class="center-column d-flex flex-column p-0 h-100 invisible overflow-scroll">
-                <div class="d-flex"><input id="soc2010_input" class="font75 flex-grow-1" list="soc2010" autocomplete="off" placeholder="Enter SOC 2010 code"><input type="button" value="+"></div>
-                <datalist class="font75" id="soc2010"></datalist>
-                <div class="flex-fill flex-equal border">
-                    <table id="AssignmentTable" class="table table-sm table-striped font75 overflow-hidden">
-                        <tr id="head"><th>Assignments</th></tr>
-                        <tr id="sel1" draggable="true"><td nowrap>&nbsp;</td></tr>
-                        <tr id="sel2" draggable="true"><td nowrap>&nbsp;</td></tr>
-                        <tr id="sel3" draggable="false"><td nowrap>&nbsp;</td></tr>
-                    </table>
-                </div>
-                <div class="flex-fill flex-equal border">
-                    <table id="JobDescriptionTable" class="table table-sm table-striped font75 overflow-auto">
-                    </table>
-                </div>
-                <div class="flex-fill flex-equal border">
-                    <p class="font75 fw-bold">Comments</p>
-                    <textarea id="comment" class="font75" rows=5 ></textarea>
-                </div>
-                <div class="flex-fill flex-equal border">
-                    <table class="table table-sm table-striped table-hover font75" id="rankTable">
-                        <thead id="rankHead">
-                        </thead>
-                        <tbody id="rankBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="right-column overflow-scroll bg-light">
-                <ul class="treeview font75 overflow-auto"></ul>
-            </div>
-        
-
         <footer class="font-monospace font75 p-1">
             <span>File: </span>
             <button id="startButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&laquo;</button>
@@ -63,7 +75,6 @@
             <span id="rowSpan"></span>
             <button id="nextButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&gt;</button>            
             <button id="endButton" type="button" class="btn btn-sm btn-light invisible" data-saw-navbutton="true">&raquo;</button>
-
         </footer>
     </div>
 
