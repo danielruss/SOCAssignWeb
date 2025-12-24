@@ -1,4 +1,4 @@
-console.log("... in SA.js ...")
+import * as soccerio from "./soccerio.js"
 
 let params = {
     soccerTableRow: 10,
@@ -95,8 +95,7 @@ function addTextToDropdown(navItemElement, text) {
 }
 
 async function addLocalForageDataToFileMenu(navItemElement) {
-    let fileDB = await getStoreDB()
-    let stores = await fileDB.keys();
+    let stores = await ls();
 
     if (stores.length > 0) {
         addDividerDropdown(navItemElement)
@@ -106,8 +105,7 @@ async function addLocalForageDataToFileMenu(navItemElement) {
     navItemElement.dataset.stores = JSON.stringify(stores)
     stores.forEach(store => {
         addNavItemToDropDown(navItemElement, store, async () => {
-            let soccerResults = await getDataFromLocalForage(store)
-            buildSoccerResultsTable(soccerResults)
+            await buildSoccerResultsTable(store)
             document.title=`SOCAssign: ${store}`
         });
     })
@@ -161,8 +159,9 @@ function rebuildFileMenu(fileMenuElement){
         throw new Error(" === ERROR: Could not find the File Menu ===" )
     }
     clearDropDown(fileMenuElement)
-    addNavItemToDropDown(fileMenuElement, "Open CSV", loadCSVFile)
-    addNavItemToDropDown(fileMenuElement, "Open JSON", loadJSONFile)
+    addNavItemToDropDown(fileMenuElement, "Open File", loadFile)
+//    addNavItemToDropDown(fileMenuElement, "Open CSV", loadCSVFile)
+//    addNavItemToDropDown(fileMenuElement, "Open JSON", loadJSONFile)
     addNavItemToDropDown(fileMenuElement, "Export CSV", exportCSVFile)
     addNavItemToDropDown(fileMenuElement, "Export JSON", exportJSONFile)
     addLocalForageDataToFileMenu(fileMenuElement)
@@ -225,6 +224,7 @@ async function parseJSON(file){
     fileReader.readAsText(file)
 }
 async function addJSONResultsToLocalForage(json) {
+    throw new Exception("Deprecated -- do not use")
     let results = JSON.parse(json)
     let storeName = results.metadata.storeName;
     let table_start = results.metadata?.table_start || 0
@@ -267,9 +267,47 @@ async function addJSONResultsToLocalForage(json) {
     activateMenuItem("Export CSV")
     activateMenuItem("Export JSON")
     activateMenuItem("Remove Current Data")
-    buildSoccerResultsTable(results)
+    await buildSoccerResultsTable(results)
 }
 
+
+// FILE > LOAD FILE
+async function loadFile(event) {
+    try {
+        let options = {
+            types: [{
+                description: 'CSV file',
+                accept: { 
+                    'text/csv': ['.csv'],
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                    'application/json': ['.json'] 
+                 },
+            }],
+            multiple: false
+        }
+        let [newHandle] = await window.showOpenFilePicker(options)
+        let file = await newHandle.getFile()
+
+        document.querySelector(".loader").classList.remove("d-none")
+        // load the data into localForage...
+        await soccerio.loadData(file)
+
+        setStoreName(file.name)
+        activateMenuItem("Export CSV")
+        activateMenuItem("Export JSON")
+        activateMenuItem("Remove Current Data")
+        
+        await buildSoccerResultsTable(file.name)
+        rebuildFileMenu()
+        document.title=document.title=`SOCAssign: ${file.name}`
+        // turn off the loader...
+        document.querySelector(".loader").classList.add("d-none")
+    } catch (error) {
+        console.error(error)
+        // turn off the loader...
+        document.querySelector(".loader").classList.add("d-none")
+    }
+}
 // FILE > LOAD CSV
 function loadCSVFile(event) {
     document.getElementById("csvFileButton").click();
@@ -415,7 +453,7 @@ function parseCSV(file) {
             activateMenuItem("Export CSV")
             activateMenuItem("Export JSON")
             activateMenuItem("Remove Current Data")
-            buildSoccerResultsTable({ fields: fields, data: results.data, metadata: { storeName: file.name } })
+            await buildSoccerResultsTable(file.name)
             rebuildFileMenu()
             document.title=document.title=`SOCAssign: ${file.name}`
             // turn off the loader...
@@ -424,27 +462,8 @@ function parseCSV(file) {
     })
 }
 
-async function getDataFromLocalForage(storeName, n) {
-    storeName = storeName ?? getStoreName()
-    setStoreName(storeName)
-    let indexDB = await localforage.createInstance({
-        name: "SOCAssign",
-        storeName: storeName
-    })
-
-    let soccerResults = {
-        fields: null,
-        data: [],
-        metadata: { storeName: storeName }
-    };
-
-    await indexDB.iterate(function (value, key, iterationNumber) {
-        if (key == "fields") {
-            soccerResults.fields = value;
-        } else {
-            soccerResults.data.push(value);
-        }
-    })
+async function getDataFromLocalForage(storeName) {
+    let soccerResults = await soccerio.getData(storeName);
 
     activateMenuItem("Export JSON")
     activateMenuItem("Export CSV")
@@ -472,6 +491,7 @@ function updateNotSelectedSortDirection(column) {
     delete column.dataset.sortDirection
 }
 
+
 function createTableHead(head, labels) {
     head.innerText = ""
     let trElement = document.createElement("tr")
@@ -487,6 +507,7 @@ function createTableHead(head, labels) {
 
 function sortTable(col, direction, data) {
     function mySort(a, b) {
+        let match=col.match(/([Ss][Oo][Cc]\d+)_(\d+)/)    
         if (/^flag/.test(col)){
             let v1 = a.flags[col.slice(5)]
             let v2 = b.flags[col.slice(5)]
@@ -494,15 +515,27 @@ function sortTable(col, direction, data) {
             if (direction == "down") return v1 > v2 ? 1 : -1
             return v1 > v2 ? -1 : 1
         }
-        if (/[Ss]core_/.test(col)) {
-            a[col] = parseFloat(a[col])
-            b[col] = parseFloat(b[col])
+  
+        let v1,v2;
+        if (match=col.match(/([Ss]core)_(\d+)/)) {
+            let indx = parseInt(match[2])-1
+            v1 = parseFloat(a.codes[indx].score)
+            v2 = parseFloat(b.codes[indx].score)
+        } else if (match=col.match(/([Ss][Oo][Cc]\d+)_(\d+)/)) {
+            let indx = parseInt(match[2])-1
+            v1 = a.codes[indx].code
+            v2 = b.codes[indx].code
+        } else {
+            v1 = a.input[col];
+            v2 = b.input[col];
         }
-        if (a[col] === b[col]) return 0;
-        let rv = a[col] > b[col] ? 1 : -1
+
+        if (v1==v2) return 0;
+        let rv = v1 > v2 ? 1 : -1
         if (direction == "down")  rv=-rv
         return rv
     }
+
     return data.sort(mySort)
 }
 
@@ -520,7 +553,7 @@ function getSortColumn(){
 }
 function addNavEventListener(){
     async function _get_data(){
-        let latestSoccerResults = await getDataFromLocalForage(getStoreName())
+        let latestSoccerResults = await soccerio.getData(document.getElementById("soccerResultsTable").dataset.storeName)
         let sortInfo = getSortColumn()
         if (sortInfo){//th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data
             latestSoccerResults.data = sortTable(sortInfo.sortColumn,sortInfo.sortDirection,latestSoccerResults.data)
@@ -529,30 +562,32 @@ function addNavEventListener(){
     }
     document.getElementById("startButton").addEventListener("click",async (event)=>{
         let latestSoccerResults = await _get_data()
-        await setSoccerResultsTableStart( 0 )
+        setSoccerResultsTableStart( 0 )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("prevButton").addEventListener("click",async (event)=>{
         let latestSoccerResults = await _get_data()
-        await setSoccerResultsTableStart( Math.max(0,parseInt(event.target.dataset.currentStart) - parseInt(event.target.dataset.numberOfVisibleRows)) )
+        setSoccerResultsTableStart( Math.max(0,parseInt(event.target.dataset.currentStart) - parseInt(event.target.dataset.numberOfVisibleRows)) )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("nextButton").addEventListener("click",async (event)=>{
         let latestSoccerResults = await _get_data()
-        await setSoccerResultsTableStart( Math.min(latestSoccerResults.data.length,parseInt(event.target.dataset.currentStart) + parseInt(event.target.dataset.numberOfVisibleRows) ) )
+        setSoccerResultsTableStart( Math.min(latestSoccerResults.data.length,parseInt(event.target.dataset.currentStart) + parseInt(event.target.dataset.numberOfVisibleRows) ) )
         fillSoccerResultsTable(latestSoccerResults)
     })
     document.getElementById("endButton").addEventListener("click",async (event)=>{
         let latestSoccerResults = await _get_data()
-        await setSoccerResultsTableStart( latestSoccerResults.data.length - parseInt(event.target.dataset.numberOfVisibleRows??1)  )
+        setSoccerResultsTableStart( latestSoccerResults.data.length - parseInt(event.target.dataset.numberOfVisibleRows??1)  )
         fillSoccerResultsTable(latestSoccerResults)
     })
 }
 async function fillSoccerResultsTable(soccerResults) {
+    let tableElement = document.getElementById("soccerResultsTable")
+    let storeName = tableElement.dataset.storeName
     let tableBody = document.getElementById("soccerResultsBody")
     tableBody.innerText = ""
 
-    let startAtLine = await getSoccerResultsTableStart()
+    let startAtLine = parseInt(tableElement.dataset.tableStart)||0;
     let numRows = 150
     let endAtLine = Math.min(soccerResults.data.length,startAtLine+numRows)
 
@@ -565,35 +600,47 @@ async function fillSoccerResultsTable(soccerResults) {
 
     for (let index=startAtLine;index<endAtLine;index++){
         let row = soccerResults.data[index]
-        row.flags=row.flags??{}
-
+        let defaultFlags = { selected: false, redflag: false, comments: false }
+        row.flags = { ...defaultFlags, ...(row.flags ?? {}) };
+        
         // for each row create a cell for each column
         let rowElement = document.createElement("tr")
-        rowElement.dataset.id = row.Id
-
-        if (!row.flags){
-            console.log(row)
-        }
+        rowElement.dataset.id = row.input.Id
+        
         // create the flags
         Object.keys(row.flags).forEach( (flag,index) =>{
             rowElement.insertAdjacentElement("beforeend", document.createElement("td"))
         })
         if (row.flags.selected) rowElement.classList.add("selected")
-        rowElement.children[0].classList.add((row.flags?.selected)?"annotated":"not-annotated")
+        rowElement.children[0].classList.add((row.flags?.selected)?"annotated":"not-annotated") 
         if (row.flags.redflag) rowElement.children[1].classList.add("redflag")
         if (row.flags.comments) rowElement.children[2].classList.add("infoflag")
 
-
-        soccerResults.fields.forEach(col => {
-            let colElement = document.createElement("td")
-            if (!isNaN(row[col]) || col=="Id") {
-                colElement.setAttribute("nowrap", true)
-                if (/[Ss]core_/.test(col)) {
-                    row[col] = parseFloat(row[col]).toFixed(4)
-                }
-            }
-            colElement.innerText = row[col] ?? ""
+        // create the columns for the input...
+        soccerResults.metadata.input_columns.forEach(col => {
+            let colElement = document.createElement("td");
+            if (row.input[col] == "NA") row.input[col] = null;
+            const value = row.input[col];
+            colElement.innerText = (row.input[col] && row.input[col] != "NA") ? row.input[col] : "";
+            if (col=="Id") colElement.setAttribute("nowrap", true)
             rowElement.insertAdjacentElement("beforeend", colElement);
+        });
+        // now alternate between soccer code, title, and score
+        row.codes.forEach(col => {
+            let code_element = document.createElement("td");
+            code_element.innerText = col.code ?? ""
+            rowElement.insertAdjacentElement("beforeend", code_element);
+
+            if (soccerResults.metadata.has_title){
+                let title_element = document.createElement("td");
+                title_element.innerText = col.title ?? ""
+                rowElement.insertAdjacentElement("beforeend", title_element);
+            }
+
+            let score_element = document.createElement("td");
+            score_element.innerText = parseFloat(col.score).toFixed(4) ?? ""
+            score_element.setAttribute("nowrap", true)
+            rowElement.insertAdjacentElement("beforeend", score_element);
         });
 
         // create a event listenter for when a row is clicked...
@@ -610,10 +657,10 @@ async function fillSoccerResultsTable(soccerResults) {
             buildJobDescriptionTable(row)
 
             // fill the comment textarea and Inputbox
-            fillCommentTextArea(soccerResults.metadata.storeName, row.Id)
+            fillCommentTextArea(storeName, row.input.Id)
 
             // build the assignment table
-            let previousResults = await getResult(row.Id)
+            let previousResults = await soccerio.getRow(storeName,row.input.Id)
             buildAssignmentTable(previousResults)
 
             // remove the border class from old id...
@@ -623,7 +670,7 @@ async function fillSoccerResultsTable(soccerResults) {
             selectedRow?.classList.add('selectedRow')
 
             // let the soccer dataset know which row is selected for flagging...
-            tableBody.parentElement.dataset.selectedId = row.Id
+            tableBody.parentElement.dataset.selectedId = row.input.Id
         })
         tableBody.insertAdjacentElement("beforeend", rowElement);
     }
@@ -711,40 +758,42 @@ function fillRankTable(result) {
     let tableBody = document.getElementById("rankBody")
     tableBody.innerText = ""
     if (!result) return
-    let {score_keys,soc2010_keys} = getSoccerKeys(result)
-    for (let rank=1; rank<=soc2010_keys.length;rank++){
-        let tableRow = tableBody.insertRow()
+    result.codes.forEach( (item,rank)=>{
+        let {code,title,score} = item;
+        let tableRow = tableBody.insertRow();
         let rankCol = tableRow.insertCell();
-        rankCol.innerHTML = (result) ? rank : "&nbsp;"
-
+        rankCol.innerHTML = (result) ? rank+1 : "&nbsp;"
+        
         let scoreCol = tableRow.insertCell();
-        scoreCol.innerHTML = result[score_keys[rank-1]]
+        scoreCol.innerHTML = parseFloat(score).toFixed(4);
 
-
-        let code = result[soc2010_keys[rank-1]]
         let codeCol = tableRow.insertCell();
         codeCol.innerText = code;
         codeCol.classList.add("nowrap")
+
         let titleCol = tableRow.insertCell();
-        titleCol.innerText = soc2010_lookup.codes[code].title
+        titleCol.innerText = title??soc2010_lookup.codes[code]?.title??"";
 
         tableRow.addEventListener("click", (event) => {
-            assignCode(result.Id, event.target.parentElement.children[2].innerText)
+            assignCode(result.input.Id, code)
         })
         tableBody.insertAdjacentElement("beforeend", tableRow)
-    }
+    });
 }
 
 async function fillCommentTextArea(storeName, id) {
-    let result = await getResult(id, storeName)
+    let result = await soccerio.getRow(storeName, id)
     let commentTextArea = document.getElementById("comment")
-    commentTextArea.value = result.assignments.comment;
+    commentTextArea.value = result.assignments?.comment ?? "";
 
     commentTextArea.oninput = async (event) => {
+        let defaultFlags = { selected: false, redflag: false, comments: false }
+        result.flags = { ...defaultFlags, ...(result.flags ?? {}) };
         result.flags.comments = commentTextArea.value.trim().length > 0
+        result.assignments = result.assignments ?? { codes: [], comment: "" }
         result.assignments.comment = commentTextArea.value
         updateFlag(id, result.flags)
-        await storeResults(id, result, storeName)
+        await soccerio.updateRow(storeName, id, result)
     }
 
     // clear old values in the input box
@@ -784,6 +833,7 @@ async function fillCommentTextArea(storeName, id) {
 }
 
 async function getResult(id, storeName) {
+    throw new Exception("get Results is deprecated");
     storeName = storeName ?? getStoreName();
     let store = await localforage.createInstance({
         name: "SOCAssign",
@@ -795,6 +845,7 @@ async function getResult(id, storeName) {
 }
 
 async function storeResults(id, results, storeName) {
+    throw new Exception("storeResults is deprecated");
     storeName = storeName ?? getStoreName()
     let store = await localforage.createInstance({
         name: "SOCAssign",
@@ -804,6 +855,7 @@ async function storeResults(id, results, storeName) {
     getStoreDB()
 }
 async function removeCurrentStore(){
+    throw new Exception("removeCurrentStore is deprecated");
     let storeName = getStoreName();
     let storeDB = await getStoreDB()
     await storeDB.removeItem(storeName)
@@ -821,6 +873,7 @@ async function removeCurrentStore(){
 }
 
 function buildAssignmentTable(results) {
+    results.assignments = results.assignments ?? { codes: [], comment: "" }
     let selections = results.assignments.codes;
 
     function buildEmptyRow() {
@@ -829,7 +882,7 @@ function buildAssignmentTable(results) {
         for (let tdNum = 1; tdNum <= 2; tdNum++) {
             let tdElement = document.createElement("td")
             tdElement.innerHTML = "&nbsp;"
-            tdElement.classList.add("nowrap", "overflow-hidden", "mw-90")
+            tdElement.classList.add("nowrap", "overflow-hidden")
             trElement.insertAdjacentElement("beforeend", tdElement)
         }
         return trElement
@@ -839,7 +892,6 @@ function buildAssignmentTable(results) {
     tableElement.innerText = "";
 
     let trElement = document.createElement("tr")
-
     let thElement = document.createElement("th")
     thElement.innerText = "Assignments"
     thElement.setAttribute("colspan", 2)
@@ -860,7 +912,6 @@ function buildAssignmentTable(results) {
                 let timeoutid=0;
                 let popup = null;
                 trElement.children[1].addEventListener("mouseenter",(event)=>{
-//                    console.log(`in ${trElement.children[1].innerText}`)
                     if (timeoutid){
                         clearTimeout(timeoutid);
                         timeoutid = 0;
@@ -873,7 +924,6 @@ function buildAssignmentTable(results) {
                     },1000)
                 })
                 trElement.children[1].addEventListener("mouseout",(event)=>{
-//                    console.log(`left ${trElement.children[1].innerText}`)
                     if (timeoutid) {
                         clearTimeout(timeoutid)
                         timeoutid = 0                        
@@ -905,48 +955,56 @@ function swap(array, index1, index2) {
     return array;
 }
 async function moveUp(event) {
-    let result = await getResult(event.target.dataset.id)
+    let tableElement = document.getElementById("soccerResultsTable");
+    let storeName = tableElement.dataset.storeName
+    let result = await soccerio.getRow(storeName, tableElement.dataset.selectedId);
     let index = event.target.dataset.selectionIndex
     result.assignments.codes = swap(result.assignments.codes, index, index - 1)
-    await storeResults(event.target.dataset.id, result)
+    await soccerio.updateRow(storeName, result.input.Id, result)
 
     buildAssignmentTable(result)
 }
 async function moveDown(event) {
-    let result = await getResult(event.target.dataset.id)
+    let tableElement = document.getElementById("soccerResultsTable");
+    let storeName = tableElement.dataset.storeName
+    let result = await soccerio.getRow(storeName, tableElement.dataset.selectedId);
     let index = parseInt(event.target.dataset.selectionIndex)
     result.assignments.codes = swap(result.assignments.codes, index, index + 1)
-    await storeResults(event.target.dataset.id, result)
+    await soccerio.updateRow(storeName, result.input.Id, result)
 
     buildAssignmentTable(result)
 }
 async function deassign(event) {
-    let result = await getResult(event.target.dataset.id)
+    let tableElement = document.getElementById("soccerResultsTable");
+    let storeName = tableElement.dataset.storeName
+    let rowId = tableElement.dataset.selectedId;
+    let result = await soccerio.getRow(storeName, rowId);
     let index = event.target.dataset.selectionIndex
     result.assignments.codes.splice(index, 1)
     if (result.assignments.codes.length == 0) {
         result.flags.selected = false;
-        updateFlag(event.target.dataset.id, result.flags)
+        updateFlag(rowId, result.flags)
     }
-    await storeResults(event.target.dataset.id, result)
+    await soccerio.updateRow(storeName, rowId, result)
 
     buildAssignmentTable(result)
 }
 
 async function assignCode(id, code) {
-
-    let results = await getResult(id)
+    let storeName = document.getElementById("soccerResultsTable").dataset.storeName
+    let results = await soccerio.getRow(storeName, id);
     results.flags = results.flags ?? {}
+    results.assignments = results.assignments ?? { codes: [], comment: "" }
     if (!results.flags.selected) {
         results.flags.selected = true;
         updateFlag(id, results.flags)
-        await storeResults(id, results);
+        await soccerio.updateRow(storeName, id, results);
     }
     if (!results.assignments.codes.includes(code)) {
         if (results.assignments.codes.length > 2) results.assignments.codes.pop()
         results.assignments.codes.push(code)
 
-        await storeResults(id, results);
+        await soccerio.updateRow(storeName, id, results);
         buildAssignmentTable(results);
     }
 }
@@ -964,19 +1022,18 @@ function buildJobDescriptionTable(result) {
 
     if (!result) return;
 
-    Object.entries(result).forEach(([key, entry]) => {
-        if (!/_\d+$/.test(key) && typeof entry == "string") {
-            trElement = document.createElement("tr")
+    Object.entries(result.input).forEach(([key, entry]) => {
 
-            thElement = document.createElement("th")
-            thElement.innerText = key
-            trElement.insertAdjacentElement("beforeend", thElement)
+        trElement = document.createElement("tr")
 
-            thElement = document.createElement("td")
-            thElement.innerText = entry
-            trElement.insertAdjacentElement("beforeend", thElement)
-            tableElement.insertAdjacentElement("beforeend", trElement);
-        }
+        thElement = document.createElement("th")
+        thElement.innerText = key
+        trElement.insertAdjacentElement("beforeend", thElement)
+
+        thElement = document.createElement("td")
+        thElement.innerText = entry
+        trElement.insertAdjacentElement("beforeend", thElement)
+        tableElement.insertAdjacentElement("beforeend", trElement);
     })
 
 }
@@ -985,26 +1042,18 @@ function setStoreName(storeName) {
     document.querySelector("footer").children[0].innerText = `File: ${storeName}`
 }
 function getStoreName() {
-    return document.querySelector("footer").children[0].innerText.substring(6)
+    return document.getElementById("soccerResultsTable").dataset.storeName
 }
 
 function clearCenterColumn() {
     buildRankTable()
 }
 
-async function getSoccerResultsTableStart(){
-    let storeName = getStoreName()
-    let storeDB = await getStoreDB()
-    let metadata = await storeDB.getItem(storeName)
-    metadata.table_start = metadata?.table_start ?? 0
-    return metadata.table_start
+function getSoccerResultsTableStart(){
+    return parseInt(storeElement("soccerResultsTable").dataset.tableStart??0)
 }
-async function setSoccerResultsTableStart(value){
-    let storeName = getStoreName()
-    let storeDB = await getStoreDB()
-    let metadata = await storeDB.getItem(storeName)
-    metadata.table_start=value
-    await storeDB.setItem(storeName,metadata)
+function setSoccerResultsTableStart(value){
+    document.getElementById("soccerResultsTable").dataset.tableStart=value;;
 }
 
 function addFlagColumn(flagClass,sortCol,row){
@@ -1015,22 +1064,38 @@ function addFlagColumn(flagClass,sortCol,row){
 }
 
 
-function buildSoccerResultsTable(soccerResults) {
-    
+// the filename is the key in indexedDB and the the metadata data.
+// pass in the key and I'll load the data + metadata for the file.
+async function buildSoccerResultsTable(filename) {
+    // get the data from localForage
+    let soccerResults = await soccerio.getData(filename);
+
+    let tableElement = document.getElementById("soccerResultsTable")
+    tableElement.dataset.storeName=filename;
+
+    // build the header row... starting the the flag columns
+    let headers = [];
+    headers.push(...soccerResults.metadata.input_columns);
+    soccerResults.metadata.code_columns.forEach( (col,indx) => {
+        headers.push(col)
+        if (soccerResults.metadata.has_title) headers.push(soccerResults.metadata.title_columns[indx]);
+        headers.push(soccerResults.metadata.score_columns[indx]);
+    });
+
     let tableHead = document.getElementById("soccerResultsHead")
-    createTableHead(tableHead, soccerResults.fields)
+    createTableHead(tableHead, headers)
     Array.from(tableHead.children[0].children).forEach(thElement => {
         thElement.dataset.sortColumn=thElement.innerText
     })
-
+    
     // add the flags (adding to the front, so do it backwards...)
     let fclass=["infoflag","redflag","annotated"]
     let fkey=["comments","redflag","selected"]
     fclass.forEach((value,index) =>{
         addFlagColumn(value,fkey[index],tableHead.children[0])
     })
-
-
+    
+    
     // all the header are in the "no-sort" state
     // add event listeners to the column headers.
     tableHead.querySelectorAll("tr th").forEach((th,index,group) => {
@@ -1043,14 +1108,15 @@ function buildSoccerResultsTable(soccerResults) {
                     updateNotSelectedSortDirection(x)
                 }
             })
-
-            let latestSoccerResults = await getDataFromLocalForage(getStoreName())
-            latestSoccerResults.data = sortTable(th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data)
+            
+            let tableElement = document.getElementById("soccerResultsTable")
+            let latestSoccerResults = await getDataFromLocalForage(tableElement.dataset.storeName)
+            latestSoccerResults.data = sortTable(th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data)            
             setSoccerResultsTableStart(0)
             fillSoccerResultsTable(latestSoccerResults)
         })
     })
-
+    
     fillSoccerResultsTable(soccerResults)
     clearCenterColumn()
 }
@@ -1162,18 +1228,24 @@ async function loadSOC2010() {
 window.addEventListener("load", async () => {
     await loadSOC2010()
     buildUI()
+    document.querySelectorAll("input[type='text'],textarea").forEach((textinput =>{
+        // prevent when I type an "F" in the comments/soc2010 input from toggling
+        // the flag
+        textinput.addEventListener("keyup",(event) => event.stopPropagation())
+    }))
     document.addEventListener("keyup", async event => {
         let soccerResultTable = document.getElementById("soccerResultsTable")
         if (event.code == "KeyF") {
             if ("selectedId" in soccerResultTable.dataset) {
-                let id = soccerResultTable.dataset.selectedId
-                let storeName = getStoreName()
+                let id = soccerResultTable.dataset.selectedId;
+                let storeName = soccerResultTable.dataset.storeName;
 
                 // update the flag
-                let result = await getResult(id, storeName)
+                let result = await soccerio.getRow(storeName, id);
+                result.flags = result.flags ?? {}
                 result.flags.redflag = !result.flags.redflag
                 updateFlag(id, result.flags)
-                await storeResults(id, result, storeName)
+                await soccerio.updateRow(storeName, id, result);
             }
         }
     })

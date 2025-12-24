@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Document</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .page {
+            display: grid;
+            max-height: 100vh;
+            min-height: 100vh;
+            grid-template-columns: 40vw 30vw 30vw;
+            grid-template-rows: 5vh 90vh 5vh;
+            grid-template-areas:
+                'head       head   head'
+                'left-column center-column right-column'
+                'status     status status';
+            background-color: lightgrey;
+            overflow: hidden;   
+        }
+        .top-row {
+            grid-area: head;
+            background-color: white;
+        }
+        .status {
+            grid-area: status;
+            background-color: lightblue;
+        }
+        .left-column {
+            grid-area: left-column;
+            background-color: lightgreen;
+        }
+        .center-content {
+            grid-area: center-column;
+            background-color: lightcoral;
+        }
+        .right-column {
+            grid-area: right-column;
+            background-color: lightgoldenrodyellow;
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <div class="top-row">top</div>
+        <div class="left-column">Left</div>
+        <div class="center-content">Center</div>
+        <div class="right-column">Right</div>
+        <div class="status">Status</div>
+    </div>
+    
+</body>
+</html>
