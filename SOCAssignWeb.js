@@ -1,5 +1,6 @@
 import * as soccerio from "./soccerio.js"
 import * as cs from "./codingsystems.js"
+import XLSX from "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs";
 
 const soccerResultsTableElement = document.getElementById("soccerResultsTable");
 let params = {
@@ -112,6 +113,9 @@ async function addLocalForageDataToFileMenu(navItemElement) {
             buildAssignmentTable();
             fillCommentTextArea();
             document.title=`SOCAssign: ${store}`
+            activateMenuItem("Export CSV")
+            activateMenuItem("Export JSON")
+            activateMenuItem("Export Excel")
         });
     })
 }
@@ -167,6 +171,7 @@ function rebuildFileMenu(fileMenuElement){
     addNavItemToDropDown(fileMenuElement, "Open File", loadFile)
     addNavItemToDropDown(fileMenuElement, "Export CSV", exportCSVFile)
     addNavItemToDropDown(fileMenuElement, "Export JSON", exportJSONFile)
+    addNavItemToDropDown(fileMenuElement, "Export Excel", exportExcelFile)
     addLocalForageDataToFileMenu(fileMenuElement)
 
 }
@@ -204,6 +209,7 @@ function buildNavbar() {
 
     deactivateMenuItem("Export CSV")
     deactivateMenuItem("Export JSON")
+    deactivateMenuItem("Export Excel")
     deactivateMenuItem("Copy")
     deactivateMenuItem("Paste")
     deactivateMenuItem("Remove Current Data")
@@ -269,6 +275,7 @@ async function addJSONResultsToLocalForage(json) {
 
     activateMenuItem("Export CSV")
     activateMenuItem("Export JSON")
+    activateMenuItem("Export Excel")
     activateMenuItem("Remove Current Data")
     await buildSoccerResultsTable(results)
 }
@@ -298,6 +305,7 @@ async function loadFile(event) {
         setStoreName(file.name)
         activateMenuItem("Export CSV")
         activateMenuItem("Export JSON")
+        activateMenuItem("Export Excel")
         activateMenuItem("Remove Current Data")
         
         await buildSoccerResultsTable(file.name);
@@ -315,17 +323,32 @@ async function loadFile(event) {
 
 // FILE > EXPORT CSV
 async function exportCSVFile(event) {
-    let results = await getDataFromLocalForage();
+    let storeName = getStoreName()
+    let results = await getDataFromLocalForage(storeName);
+    let headers=[...results.metadata.input_columns]
+    results.metadata.code_columns.forEach( (cc,indx) => {
+        headers.push(cc)
+        headers.push(results.metadata.score_columns[indx])
+    })
+    for (let indx=0;indx<params.maxSelection;indx++){
+        headers.push(`coder_${indx}`)
+    }
+    headers.push("comment","redflag")
+
     let csvdata=results.data.map( (r,indx) => {
         // make a deep copy of the row...
-        let nv = JSON.parse(JSON.stringify(r));
-        delete nv.assignments
-        delete nv.flags
-        nv.coder_1 = r.assignments.codes.length>0 ? r.assignments.codes[0] : "",
-        nv.coder_2 = r.assignments.codes.length>1 ? r.assignments.codes[1] : "",
-        nv.coder_3 = r.assignments.codes.length>2 ? r.assignments.codes[2] : ""
-        nv.comment = r.assignments.comment ?? ""
-        nv.redflag = r.flags.redflag
+        let nv = {...r.input}
+        // copy the soccer results
+        r.codes.forEach( (c,code_index) => {
+            nv[results.metadata.code_columns[code_index]] = c.code
+            nv[results.metadata.score_columns[code_index]] = c.score
+        })
+        // copy the assignments
+        for (let indx=0;indx<params.maxSelection;indx++){
+            nv[`coder_${indx+1}`] = r.assignments?.codes?.length>indx ? r.assignments.codes[indx] : "";
+        }
+        nv.comment = r.assignments?.comment ?? ""
+        nv.redflag = r.flags?.redflag || false;
         return nv
     } )
     let csv = Papa.unparse(csvdata)
@@ -335,7 +358,9 @@ async function exportCSVFile(event) {
                 description: 'CSV file',
                 accept: { 'text/csv': ['.csv'] },
             }],
+            suggestedName: storeName.replace(/\.\w+/,"_socassign.csv")
         }
+
         let newHandle = await window.showSaveFilePicker(options)
         let writableStream = await newHandle.createWritable();
         const blob = new Blob([csv], {
@@ -361,7 +386,8 @@ async function fileDownload() {
 // FILE > EXPORT JSON
 async function exportJSONFile(event) {
     // get the results from Local Forage
-    let results = await getDataFromLocalForage()
+    const store = getStoreName()
+    let results = await getDataFromLocalForage(store)
 
     try {
         let options = {
@@ -369,7 +395,7 @@ async function exportJSONFile(event) {
                 description: 'JSON file',
                 accept: { 'application/json': ['.json'] },
             }],
-            suggestedName: results.metadata.storeName.replace(/\.csv/,"_socassign.json")
+            suggestedName: store.replace(/\.\w+/,"_socassign.json")
         }
         let newHandle = await window.showSaveFilePicker(options)
         let writableStream = await newHandle.createWritable();
@@ -388,6 +414,49 @@ async function exportJSONFile(event) {
         console.error(error)
     }
 }
+
+// FILE > EXPORT Excel
+async function exportExcelFile(event) {
+    let store = getStoreName();
+    let results = await getDataFromLocalForage(store);
+
+    let headers=[...results.metadata.input_columns]
+    results.metadata.code_columns.forEach( (cc,indx) => {
+        headers.push(cc)
+        headers.push(results.metadata.score_columns[indx])
+    })
+    for (let indx=0;indx<params.maxSelection;indx++){
+        headers.push(`coder_${indx}`)
+    }
+    headers.push("comment","redflag")
+
+    let csvdata=results.data.map( (r,indx) => {
+        // make a deep copy of the row...
+        let nv = {...r.input}
+        // copy the soccer results
+        r.codes.forEach( (c,code_index) => {
+            nv[results.metadata.code_columns[code_index]] = c.code
+            nv[results.metadata.score_columns[code_index]] = c.score
+        })
+        // copy the assignments
+        for (let indx=0;indx<params.maxSelection;indx++){
+            nv[`coder_${indx+1}`] = r.assignments?.codes?.length>indx ? r.assignments.codes[indx] : "";
+        }
+        nv.comment = r.assignments?.comment ?? ""
+        nv.redflag = r.flags?.redflag || false;
+        return nv
+    } )
+
+    let sheet_name = store.replace(/\.\w+$/,"")
+    let download_file = store.replace(/\.\w+$/,"_socassign.xlsx")
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.json_to_sheet(csvdata);
+    XLSX.utils.book_append_sheet(workbook,sheet,sheet_name)
+    XLSX.utils.sheet_add_aoa(sheet, [headers], { origin: "A1" });
+    XLSX.writeFile(workbook, download_file, { compression: true });
+}
+
+
 
 function parseCSV(file) {
     throw new Error("Deprecated -- do not use")
@@ -450,6 +519,7 @@ async function getDataFromLocalForage(storeName) {
 
     activateMenuItem("Export JSON")
     activateMenuItem("Export CSV")
+    activateMenuItem("Export Excel")
     activateMenuItem("Remove Current Data")
 
     return soccerResults
