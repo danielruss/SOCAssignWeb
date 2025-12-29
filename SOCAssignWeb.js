@@ -763,7 +763,7 @@ function fillRankTable(result) {
         let titleCol = tableRow.insertCell();
         if (!title){
             let codingsystem = getCodingSystem()
-            title = codingsystems[codingsystem][code]??""
+            title = codingsystems[codingsystem].codes[code].title??""
         }
         titleCol.innerText = title
 
