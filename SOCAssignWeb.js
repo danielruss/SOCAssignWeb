@@ -1,5 +1,7 @@
 import * as soccerio from "./soccerio.js"
+import * as cs from "./codingsystems.js"
 
+const soccerResultsTableElement = document.getElementById("soccerResultsTable");
 let params = {
     soccerTableRow: 10,
     maxSelection: 3
@@ -105,7 +107,10 @@ async function addLocalForageDataToFileMenu(navItemElement) {
     navItemElement.dataset.stores = JSON.stringify(stores)
     stores.forEach(store => {
         addNavItemToDropDown(navItemElement, store, async () => {
-            await buildSoccerResultsTable(store)
+            await buildSoccerResultsTable(store);
+            buildTreeView();
+            buildAssignmentTable();
+            fillCommentTextArea();
             document.title=`SOCAssign: ${store}`
         });
     })
@@ -160,8 +165,6 @@ function rebuildFileMenu(fileMenuElement){
     }
     clearDropDown(fileMenuElement)
     addNavItemToDropDown(fileMenuElement, "Open File", loadFile)
-//    addNavItemToDropDown(fileMenuElement, "Open CSV", loadCSVFile)
-//    addNavItemToDropDown(fileMenuElement, "Open JSON", loadJSONFile)
     addNavItemToDropDown(fileMenuElement, "Export CSV", exportCSVFile)
     addNavItemToDropDown(fileMenuElement, "Export JSON", exportJSONFile)
     addLocalForageDataToFileMenu(fileMenuElement)
@@ -297,8 +300,9 @@ async function loadFile(event) {
         activateMenuItem("Export JSON")
         activateMenuItem("Remove Current Data")
         
-        await buildSoccerResultsTable(file.name)
-        rebuildFileMenu()
+        await buildSoccerResultsTable(file.name);
+        buildTreeView();
+        rebuildFileMenu();
         document.title=document.title=`SOCAssign: ${file.name}`
         // turn off the loader...
         document.querySelector(".loader").classList.add("d-none")
@@ -308,29 +312,7 @@ async function loadFile(event) {
         document.querySelector(".loader").classList.add("d-none")
     }
 }
-// FILE > LOAD CSV
-function loadCSVFile(event) {
-    document.getElementById("csvFileButton").click();
-}
-// FILE > LOAD JSON
-async function loadJSONFile(event) {
-    try {
-        let options = {
-            types: [{
-                description: 'JSON file',
-                accept: { 'application/json': ['.json'] },
-            }],
-            multiple: false
-        }
-        let [newHandle] = await window.showOpenFilePicker(options)
-        let file = await newHandle.getFile()
-        await parseJSON(file)
-        rebuildFileMenu()
-        document.title = `SOCAssign: ${file.name}`;
-    } catch (error) {
-        console.error(error)
-    }
-}
+
 // FILE > EXPORT CSV
 async function exportCSVFile(event) {
     let results = await getDataFromLocalForage();
@@ -408,6 +390,7 @@ async function exportJSONFile(event) {
 }
 
 function parseCSV(file) {
+    throw new Error("Deprecated -- do not use")
     console.log(`parsing ${file.name}`)
     // show the loader...
     document.querySelector(".loader").classList.remove("d-none")
@@ -553,7 +536,7 @@ function getSortColumn(){
 }
 function addNavEventListener(){
     async function _get_data(){
-        let latestSoccerResults = await soccerio.getData(document.getElementById("soccerResultsTable").dataset.storeName)
+        let latestSoccerResults = await soccerio.getData(getStoreName());
         let sortInfo = getSortColumn()
         if (sortInfo){//th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data
             latestSoccerResults.data = sortTable(sortInfo.sortColumn,sortInfo.sortDirection,latestSoccerResults.data)
@@ -582,12 +565,11 @@ function addNavEventListener(){
     })
 }
 async function fillSoccerResultsTable(soccerResults) {
-    let tableElement = document.getElementById("soccerResultsTable")
-    let storeName = tableElement.dataset.storeName
+    let storeName = soccerResultsTableElement.dataset.storeName
     let tableBody = document.getElementById("soccerResultsBody")
     tableBody.innerText = ""
 
-    let startAtLine = parseInt(tableElement.dataset.tableStart)||0;
+    let startAtLine = parseInt(soccerResultsTableElement.dataset.tableStart)||0;
     let numRows = 150
     let endAtLine = Math.min(soccerResults.data.length,startAtLine+numRows)
 
@@ -599,10 +581,15 @@ async function fillSoccerResultsTable(soccerResults) {
     }
 
     for (let index=startAtLine;index<endAtLine;index++){
-        let row = soccerResults.data[index]
+        let row = soccerResults.data[index];
         let defaultFlags = { selected: false, redflag: false, comments: false }
         row.flags = { ...defaultFlags, ...(row.flags ?? {}) };
         
+        // I'm sticking the coding system into the row... but this
+        // is not needed in the soccerResults, because it has
+        // soccerResults.metadata
+        row = structuredClone(row);
+        row.codingsystem = soccerResults.metadata.coding_system;
         // for each row create a cell for each column
         let rowElement = document.createElement("tr")
         rowElement.dataset.id = row.input.Id
@@ -744,6 +731,7 @@ function buildRankTable(result) {
 }
 
 function getSoccerKeys(result){
+    throw new Error("getSoccerKeys is deprecated");
     let scores=[]
     let soc2010=[]
     let score_regex = /score_\d+/i
@@ -754,6 +742,7 @@ function getSoccerKeys(result){
     }
     return {score_keys:scores,soc2010_keys:soc2010}
 }
+
 function fillRankTable(result) {
     let tableBody = document.getElementById("rankBody")
     tableBody.innerText = ""
@@ -772,7 +761,11 @@ function fillRankTable(result) {
         codeCol.classList.add("nowrap")
 
         let titleCol = tableRow.insertCell();
-        titleCol.innerText = title??soc2010_lookup.codes[code]?.title??"";
+        if (!title){
+            let codingsystem = getCodingSystem()
+            title = codingsystems[codingsystem][code]??""
+        }
+        titleCol.innerText = title
 
         tableRow.addEventListener("click", (event) => {
             assignCode(result.input.Id, code)
@@ -782,8 +775,13 @@ function fillRankTable(result) {
 }
 
 async function fillCommentTextArea(storeName, id) {
-    let result = await soccerio.getRow(storeName, id)
     let commentTextArea = document.getElementById("comment")
+    // if called with no parameter.. reset it to blank...
+    if (!storeName){
+        commentTextArea.value = ""
+        return
+    }
+    let result = await soccerio.getRow(storeName, id)
     commentTextArea.value = result.assignments?.comment ?? "";
 
     commentTextArea.oninput = async (event) => {
@@ -797,35 +795,37 @@ async function fillCommentTextArea(storeName, id) {
     }
 
     // clear old values in the input box
-    let soc2010_input = document.getElementById("soc2010_input");
-    soc2010_input.value = ""
+    let coder_input = document.getElementById("coder_input");
+    coder_input.value = ""
 
     // clear the datalist
-    let datalist = document.getElementById("soc2010")
+    let datalist = document.getElementById("codingsystem")
     datalist.innerText = ""
 
-    soc2010_input.onkeyup = async (event) => {
+    let codingSystem = getCodingSystem();
+    coder_input.onkeyup = async (event) => {
         datalist.innerText = ""
-        if (soc2010_input.value.length > 1 && soc2010_input.value.length < 7) {
-            Object.keys(soc2010_lookup.codes)
-                .filter(key => key.startsWith(soc2010_input.value))
+        if (coder_input.value.length > 1 && coder_input.value.length < 7) {
+            Object.keys(codingsystems[codingSystem].codes)
+                .filter(key => key.startsWith(coder_input.value))
                 .forEach(key => {
-                    datalist.insertAdjacentHTML("beforeend", `<option value="${key}">`)
+                    console.log(key)
+                    datalist.insertAdjacentHTML("beforeend", `<option value="${key}">${key}</option>`)
                 })
         }
-        if (soc2010_lookup.codes.hasOwnProperty(soc2010_input.value) && event.key == "Enter") {
+        if (codingsystems[codingSystem].codes.hasOwnProperty(coder_input.value) && event.key == "Enter") {
             event.preventDefault()
-            await assignCode(id, soc2010_input.value);
-            soc2010_input.value = "";
+            await assignCode(id, coder_input.value);
+            coder_input.value = "";
             datalist.innerText = ""
         }
     }
 
     //handle user typing value
-    soc2010_input.parentElement.querySelector("button").onclick = async (event) => {
-        if (soc2010_lookup.codes.hasOwnProperty(soc2010_input.value)) {
-            await assignCode(id, soc2010_input.value);
-            soc2010_input.value = "";
+    coder_input.parentElement.querySelector("button").onclick = async (event) => {
+        if (codingsystems[codingSystem].codes.hasOwnProperty(coder_input.value)) {
+            await assignCode(id, coder_input.value);
+            coder_input.value = "";
             datalist.innerText = ""
         }
     }
@@ -873,6 +873,21 @@ async function removeCurrentStore(){
 }
 
 function buildAssignmentTable(results) {
+    // clear the assignment table...
+    let tableElement = document.getElementById("AssignmentTable");
+    tableElement.innerText = "";
+
+    // add the header row...
+    let trElement = document.createElement("tr")
+    let thElement = document.createElement("th")
+    thElement.innerText = "Assignments"
+    thElement.setAttribute("colspan", 2)
+    trElement.insertAdjacentElement("beforeend", thElement)
+    tableElement.insertAdjacentElement("beforeend", trElement);
+
+    // if the results are not defined... just return
+    if (!results) return
+
     results.assignments = results.assignments ?? { codes: [], comment: "" }
     let selections = results.assignments.codes;
 
@@ -888,18 +903,10 @@ function buildAssignmentTable(results) {
         return trElement
     }
 
-    let tableElement = document.getElementById("AssignmentTable");
-    tableElement.innerText = "";
-
-    let trElement = document.createElement("tr")
-    let thElement = document.createElement("th")
-    thElement.innerText = "Assignments"
-    thElement.setAttribute("colspan", 2)
-    trElement.insertAdjacentElement("beforeend", thElement)
-
-    tableElement.insertAdjacentElement("beforeend", trElement);
+    
 
     if (selections?.length > 0) {
+        let codingSystem = getCodingSystem();
         let selectionsMade = selections.length;
         selections.length = params.maxSelection;
         selections.forEach((selection, index) => {
@@ -908,7 +915,7 @@ function buildAssignmentTable(results) {
                 let up = (index > 0) ? `<i class="p-0 bi bi-arrow-up-circle-fill text-primary" data-id=${results.Id}  data-selection-index="${index}"></i>` : ''
                 let down = (index < (selectionsMade - 1)) ? `<i class="p-0 bi bi-arrow-down-circle-fill text-primary" data-id=${results.Id}  data-selection-index="${index}"></i>` : ''
                 trElement.children[0].innerHTML = `<i class="p-0 bi bi-x-circle-fill text-primary" data-id=${results.Id}  data-selection-index="${index}"></i>${up}${down}`;
-                trElement.children[1].innerText = `${selection} ${soc2010_lookup.codes[selection].title}`;
+                trElement.children[1].innerText = `${selection} ${codingsystems[codingSystem].codes[selection].title}`;
                 let timeoutid=0;
                 let popup = null;
                 trElement.children[1].addEventListener("mouseenter",(event)=>{
@@ -919,7 +926,7 @@ function buildAssignmentTable(results) {
                     timeoutid = setTimeout( ()=>{
                         popup = document.createElement("div")
                         popup.style=`position:absolute;left:${event.clientX}px;top:${event.clientY}px;z-index:2;background-color:Beige;padding:5px;border:thin black solid;`
-                        popup.innerText=soc2010_lookup.codes[selection].title
+                        popup.innerText=codingsystems[codingSystem].codes[selection].title
                         document.body.appendChild(popup)
                     },1000)
                 })
@@ -955,9 +962,8 @@ function swap(array, index1, index2) {
     return array;
 }
 async function moveUp(event) {
-    let tableElement = document.getElementById("soccerResultsTable");
-    let storeName = tableElement.dataset.storeName
-    let result = await soccerio.getRow(storeName, tableElement.dataset.selectedId);
+    let storeName = getStoreName();
+    let result = await soccerio.getRow(storeName, soccerResultsTableElement.dataset.selectedId);
     let index = event.target.dataset.selectionIndex
     result.assignments.codes = swap(result.assignments.codes, index, index - 1)
     await soccerio.updateRow(storeName, result.input.Id, result)
@@ -965,9 +971,8 @@ async function moveUp(event) {
     buildAssignmentTable(result)
 }
 async function moveDown(event) {
-    let tableElement = document.getElementById("soccerResultsTable");
-    let storeName = tableElement.dataset.storeName
-    let result = await soccerio.getRow(storeName, tableElement.dataset.selectedId);
+    let storeName = getStoreName();
+    let result = await soccerio.getRow(storeName, soccerResultsTableElement.dataset.selectedId);
     let index = parseInt(event.target.dataset.selectionIndex)
     result.assignments.codes = swap(result.assignments.codes, index, index + 1)
     await soccerio.updateRow(storeName, result.input.Id, result)
@@ -975,9 +980,8 @@ async function moveDown(event) {
     buildAssignmentTable(result)
 }
 async function deassign(event) {
-    let tableElement = document.getElementById("soccerResultsTable");
-    let storeName = tableElement.dataset.storeName
-    let rowId = tableElement.dataset.selectedId;
+    let storeName = getStoreName();
+    let rowId = soccerResultsTableElement.dataset.selectedId;
     let result = await soccerio.getRow(storeName, rowId);
     let index = event.target.dataset.selectionIndex
     result.assignments.codes.splice(index, 1)
@@ -991,7 +995,7 @@ async function deassign(event) {
 }
 
 async function assignCode(id, code) {
-    let storeName = document.getElementById("soccerResultsTable").dataset.storeName
+    let storeName = getStoreName();
     let results = await soccerio.getRow(storeName, id);
     results.flags = results.flags ?? {}
     results.assignments = results.assignments ?? { codes: [], comment: "" }
@@ -1039,21 +1043,30 @@ function buildJobDescriptionTable(result) {
 }
 
 function setStoreName(storeName) {
-    document.querySelector("footer").children[0].innerText = `File: ${storeName}`
+    soccerResultsTableElement.dataset.storeName = storeName;
+    document.querySelector("footer").children[0].innerText = `File: ${storeName}`;
 }
 function getStoreName() {
-    return document.getElementById("soccerResultsTable").dataset.storeName
+    return soccerResultsTableElement.dataset.storeName
+}
+function setCodingsystem(coding_system) {
+    soccerResultsTableElement.dataset.codingSystem = coding_system;
+    document.getElementById("coder_input").placeholder = `Enter ${codingsystems[coding_system].name} code`
+}
+function getCodingSystem() {
+    return soccerResultsTableElement.dataset.codingSystem
 }
 
 function clearCenterColumn() {
     buildRankTable()
+    buildAssignmentTable()
 }
 
 function getSoccerResultsTableStart(){
-    return parseInt(storeElement("soccerResultsTable").dataset.tableStart??0)
+    return parseInt(soccerResultsTableElement.dataset.tableStart??0)
 }
 function setSoccerResultsTableStart(value){
-    document.getElementById("soccerResultsTable").dataset.tableStart=value;;
+    soccerResultsTableElement.dataset.tableStart=value;
 }
 
 function addFlagColumn(flagClass,sortCol,row){
@@ -1070,8 +1083,8 @@ async function buildSoccerResultsTable(filename) {
     // get the data from localForage
     let soccerResults = await soccerio.getData(filename);
 
-    let tableElement = document.getElementById("soccerResultsTable")
-    tableElement.dataset.storeName=filename;
+    setStoreName(filename)
+    setCodingsystem(soccerResults.metadata.coding_system);
 
     // build the header row... starting the the flag columns
     let headers = [];
@@ -1109,9 +1122,8 @@ async function buildSoccerResultsTable(filename) {
                 }
             })
             
-            let tableElement = document.getElementById("soccerResultsTable")
-            let latestSoccerResults = await getDataFromLocalForage(tableElement.dataset.storeName)
-            latestSoccerResults.data = sortTable(th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data)            
+            let latestSoccerResults = await getDataFromLocalForage(getStoreName());
+            latestSoccerResults.data = sortTable(th.dataset.sortColumn, th.dataset.sortDirection, latestSoccerResults.data)
             setSoccerResultsTableStart(0)
             fillSoccerResultsTable(latestSoccerResults)
         })
@@ -1120,6 +1132,7 @@ async function buildSoccerResultsTable(filename) {
     fillSoccerResultsTable(soccerResults)
     clearCenterColumn()
 }
+
 
 function handleFileDrop() {
     // Set up the invisible CSV file upload
@@ -1166,12 +1179,13 @@ function handleAssignmentMove() {
     })
 }
 
+
 function buildTreeView() {
     function addAndClick(code) {
-        let soc2010_input = document.getElementById("soc2010_input")
-        if (!soc2010_input.classList.contains("invisible")){
-            soc2010_input.value = code.slice(0, 7)
-            soc2010_input.nextElementSibling.click()
+        let coder_input = document.getElementById("coder_input")
+        if (!coder_input.classList.contains("invisible")){
+            coder_input.value = code.slice(0, 7)
+            coder_input.nextElementSibling.click()
         }
     }
     function buildNodes(object, root) {
@@ -1184,7 +1198,7 @@ function buildTreeView() {
             liElement.addEventListener("click", (event) => {
                 if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
                     if (!document.querySelector(".inputSection").classList.contains("invisible")) {
-                        addAndClick(liElement.innerText)
+                        addAndClick(object.code)
                     }
                 } else {
                     if (liElement.classList.contains("caret-up")) {
@@ -1199,15 +1213,19 @@ function buildTreeView() {
             object.children.forEach((code) => buildNodes(code, ulElement))
         } else {
             liElement.addEventListener("click", (event) => {
-                addAndClick(liElement.innerText)
+                addAndClick(object.code)
             })
         }
 
     }
 
     let treeview = document.querySelector(".treeview")
-    soc2010_lookup.tree.forEach((code) => buildNodes(code, treeview))
-    treeview.insertAdjacentHTML("afterbegin", '<p class="fw-bold my-1 font75">SOC 2010</p>')
+    treeview.innerText = "";
+    let codingSystem = soccerResultsTableElement.dataset.codingSystem || "soc2010"
+    codingSystem = codingsystems[codingSystem];
+    codingSystem.tree.forEach((code) => buildNodes(code, treeview))
+
+    treeview.insertAdjacentHTML("afterbegin", `<p class="fw-bold my-1 font75">${codingSystem.name}</p>`)
 }
 
 function buildUI() {
@@ -1219,14 +1237,14 @@ function buildUI() {
     document.title="SOCAssign"
 }
 
-let soc2010_lookup = {};
-async function loadSOC2010() {
-    soc2010_lookup = await fetch("https://danielruss.github.io/codingsystems/soc_2010_complete.json")
-        .then((response) => response.json())
-}
+
+let codingsystems = {};
+let code_lookup = () => { console.error("code_lookup is not yet defined."); return null;};
 
 window.addEventListener("load", async () => {
-    await loadSOC2010()
+    codingsystems = await cs.loadCodingSystems();
+    window.codingsystems = codingsystems;
+
     buildUI()
     document.querySelectorAll("input[type='text'],textarea").forEach((textinput =>{
         // prevent when I type an "F" in the comments/soc2010 input from toggling
@@ -1234,11 +1252,10 @@ window.addEventListener("load", async () => {
         textinput.addEventListener("keyup",(event) => event.stopPropagation())
     }))
     document.addEventListener("keyup", async event => {
-        let soccerResultTable = document.getElementById("soccerResultsTable")
         if (event.code == "KeyF") {
-            if ("selectedId" in soccerResultTable.dataset) {
-                let id = soccerResultTable.dataset.selectedId;
-                let storeName = soccerResultTable.dataset.storeName;
+            if ("selectedId" in soccerResultsTableElement.dataset) {
+                let id = soccerResultsTableElement.dataset.selectedId;
+                let storeName = getStoreName();
 
                 // update the flag
                 let result = await soccerio.getRow(storeName, id);

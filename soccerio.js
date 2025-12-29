@@ -127,7 +127,7 @@ function createMetaData(header) {
     let score_regex = new RegExp(`^${last_score}_\\d+$`);
     let title_regex = new RegExp(`^${last_title}_\\d+$`);
 
-    soccer_meta.coding_system = last_code;
+    soccer_meta.coding_system = last_code.toLowerCase();
     soccer_meta.n = parseInt(score_n);
     soccer_meta.has_title = has_title;
     soccer_meta.code_columns = header.filter(field => code_regex.test(field));
