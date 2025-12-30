@@ -925,18 +925,7 @@ async function storeResults(id, results, storeName) {
     getStoreDB()
 }
 async function removeCurrentStore(){
-    throw new Exception("removeCurrentStore is deprecated");
-    let storeName = getStoreName();
-    let storeDB = await getStoreDB()
-    await storeDB.removeItem(storeName)
-                .catch(error => console.error(error))
-
-    await localforage.dropInstance({
-        name: "SOCAssign",
-        storeName: storeName
-      }).then(function() {
-        console.log(`Dropped ${storeName}`)
-      });
+    await soccerio.clearDataStore(getStoreName());
 
     clearSoccerResultsTable()
     rebuildFileMenu()

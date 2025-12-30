@@ -95,8 +95,11 @@ export async function loadData(file){
         case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
             await loadExcel(file);
             break;
+        case 'application/json':
+            await loadJSON(file)
+            break;
         default:
-            throw new Error('Unsupported file type');
+            throw new Error(`Unsupported file type ${file.type}`);
     }
     console.log('File loaded:', file.name);
 }
@@ -149,7 +152,9 @@ export async function loadCSV(file) {
     }
 
     let chunkIndex = 0;
-    let soccer_meta = {};
+    let soccer_meta = {
+        original_filename: file.name
+    };
 
     return new Promise( (resolve,reject) => Papa.parse(file, {
         header: true,
@@ -209,8 +214,15 @@ export async function loadExcel(file) {
     let header = Object.keys(xldata[0]);
     let soccer_meta = createMetaData(header);
     soccer_meta.n = xldata.length;
+    if (workbook.Custprops){
+        Object.entries(workbook.Custprops).forEach( ([key,value])=>{
+            soccer_meta[key]=value
+        } );
+    }
     addMetaData(file.name, soccer_meta);
-    xldata.forEach((row, index) => {
+    //xldata.forEach((row, index) => {
+    // forEach does not play nice with await..
+    for await (const [index, row] of xldata.entries()){ 
         let clean_row = {};
         clean_row.input = soccer_meta.input_columns.reduce((acc, col) => {
             acc[col] = row[col];
@@ -223,6 +235,88 @@ export async function loadExcel(file) {
             }
             return value;
         });
-        dataStore.setItem(clean_row.input.Id, clean_row);
-    });
+
+        // DEBUG: Log the ACTUAL KEY being used
+        const keyToUse = clean_row.input.Id;
+        console.log(`Index ${index}: Key type="${typeof keyToUse}" value="${keyToUse}" length=${keyToUse?.length}`); 
+        if (index < 3) console.log(`Full clean_row:`, JSON.parse(JSON.stringify(clean_row)));
+
+        await dataStore.setItem(clean_row.input.Id, clean_row);
+    };
+}
+
+export async function loadJSON(file) {
+    console.log('JSON file selected:', file.name);
+    try {
+        const jsonText = await file.text();
+        const object = JSON.parse(jsonText);
+        JSONfillLocalForage(object,file.name);
+    } catch (error) {
+        console.error(`Problem loading the JSON from ${file.name}`,error)
+    }
+
+}
+
+async function JSONfillLocalForage(object,storeName){
+    // NOTE: At this point if you upload an object that is 
+    // already in localforage, it will OVERWRITE it. 
+    // NOTE: SOCcerNET does not natively write in JSON... Yet
+    const isSOCAssignObject=checkForSOCAssignObject(object)
+    if (isSOCAssignObject.valid){
+        const store = await initIndexDB(storeName)
+        // add each row to IdB.  keep the
+        // promises in batches of 1K.
+        const batchSize=1000;
+
+        // first write the data...
+        for (let rowIndex=0; rowIndex<object.data.length; rowIndex+=batchSize){
+            const batch = object.data.slice(rowIndex,rowIndex+batchSize);
+            const promises = batch.map( (row) => store.setItem(row.input.Id,row) );
+            await Promise.all(promises);
+        }
+        // then the metadata
+        await addMetaData(storeName,object.metadata)
+    } else{
+        console.error(object)
+        console.error(`Problem loading the JSON file: ${storeName}`,isSOCAssignObject.error)
+    }
+}
+
+function checkForSOCAssignObject(o){
+
+    // check the object...
+    let requiredKeys = ['data','metadata']
+    if (!requiredKeys.every(key => key in o)) return {
+        valid:false,
+        error:'missing required key in the object'
+    };
+
+    // check the metadata
+    if (!o.metadata || typeof o.metadata !== 'object') return {
+        valid: false,
+        error: 'metadata is not an object'
+    };
+
+    requiredKeys = ['input_columns','code_columns','n', 'lines', 'coding_system','has_title']
+    if (!requiredKeys.every(key => key in o.metadata)) return {
+        valid: false,
+        error: 'missing required key in the metadata'
+    };
+
+    // check the data
+    if (!Array.isArray(o.data) || o.data.length==0 || o.data.length != o.metadata.lines) return {
+        valid: false,
+        error: `data is${o.data?.length==0?"":" not"} an array of length ${o.metadata.lines}`
+    }
+
+    // check the first row of the data...
+    requiredKeys = ['codes','input']
+    if (!('codes' in o.data[0]) || !('input' in o.data[0]) || !('Id' in o.data[0].input) ) return {
+        valid: false,
+        error: 'data is malformed'
+    };
+
+    return {
+        valid: true,
+    }
 }

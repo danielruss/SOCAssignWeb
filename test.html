@@ -24,13 +24,14 @@
     <div class="top">
         <div class="main-pane">
             <p title="just pick it!">Choose a CSV file to parse</p>
-            <input type="file" id="fileInput" accept=".csv,.xlsx"/>
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.json"/>
         </div>
         <div class="side-pane">
             <label for="fileList">Files in memory:</label>
             <ul id="fileList"></ul>
         </div>
     </div>
+
     <script type="module">
         import { clearDataStore,loadData,ls,getData } from './soccerio.js';
         document.getElementById('fileInput').addEventListener('change', async function(event) {
