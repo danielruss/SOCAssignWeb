@@ -436,21 +436,42 @@ async function exportExcelFile(event) {
         // copy the soccer results
         r.codes.forEach( (c,code_index) => {
             nv[results.metadata.code_columns[code_index]] = c.code
-            nv[results.metadata.score_columns[code_index]] = c.score
+            nv[results.metadata.score_columns[code_index]] = parseFloat(c.score)
         })
         // copy the assignments
         for (let indx=0;indx<params.maxSelection;indx++){
             nv[`coder_${indx+1}`] = r.assignments?.codes?.length>indx ? r.assignments.codes[indx] : "";
         }
         nv.comment = r.assignments?.comment ?? ""
-        nv.redflag = r.flags?.redflag || false;
+        nv.redflag = r.flags?.redflag ? "\u{1F6A9}" : "";
         return nv
     } )
 
+    // Sheet names have a max of 30 char
     let sheet_name = store.replace(/\.\w+$/,"")
+    sheet_name = (sheet_name.length<30)?sheet_name:`${sheet_name.slice(0, 4)}...${sheet_name.slice(-4)}`;
+    
     let download_file = store.replace(/\.\w+$/,"_socassign.xlsx")
     const workbook = XLSX.utils.book_new();
     const sheet = XLSX.utils.json_to_sheet(csvdata);
+    // format the scores...
+    const range = XLSX.utils.decode_range(sheet['!ref']);
+    const scoreIndices = results.metadata.score_columns.map( col => headers.indexOf(col));
+    // .s.r <- the start row .e.r <- the end row
+    // +1 to skip the header
+    for (let row=range.s.r + 1; row <= range.e.r; ++row){
+        scoreIndices.forEach(colIndex => {
+            if (colIndex>-1){
+                const cell = sheet[XLSX.utils.encode_cell({r:row,c:colIndex})]
+                // .t = type ('n'=number) .z = format
+                if (cell?.t == 'n') {
+                    cell.z = "0.000"
+                }
+            }
+        })
+    }
+    
+
     XLSX.utils.book_append_sheet(workbook,sheet,sheet_name)
     XLSX.utils.sheet_add_aoa(sheet, [headers], { origin: "A1" });
     XLSX.writeFile(workbook, download_file, { compression: true });
