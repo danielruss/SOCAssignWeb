@@ -297,14 +297,16 @@ function checkForSOCAssignObject(o){
         error: 'metadata is not an object'
     };
 
-    requiredKeys = ['input_columns','code_columns','n', 'lines', 'coding_system','has_title']
+    // CLIP has n but no lines,
+    requiredKeys = ['input_columns','code_columns','n','coding_system','has_title']
     if (!requiredKeys.every(key => key in o.metadata)) return {
         valid: false,
         error: 'missing required key in the metadata'
     };
 
-    // check the data
-    if (!Array.isArray(o.data) || o.data.length==0 || o.data.length != o.metadata.lines) return {
+    // check the data (.lines=data length .n = # of codes, CLIPS does not have .lines)
+    let check_len = o.metadata.lines || o.metadata.n
+    if (!Array.isArray(o.data) || o.data.length==0 || o.data.length != check_len) return {
         valid: false,
         error: `data is${o.data?.length==0?"":" not"} an array of length ${o.metadata.lines}`
     }
