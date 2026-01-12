@@ -876,6 +876,8 @@ async function fillCommentTextArea(storeName, id) {
     commentTextArea.value = result.assignments?.comment ?? "";
 
     commentTextArea.oninput = async (event) => {
+        // update the result
+        let result = await soccerio.getRow(storeName, id)
         let defaultFlags = { selected: false, redflag: false, comments: false }
         result.flags = { ...defaultFlags, ...(result.flags ?? {}) };
         result.flags.comments = commentTextArea.value.trim().length > 0
