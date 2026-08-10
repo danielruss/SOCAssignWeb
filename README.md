@@ -2,6 +2,15 @@
 
 SOCAssignWeb assists expert review of SOCcer, SOCcerNET, and CLIPS results.  SOCAssign reads results in  CSV, Excel, or JSON format and displays the top 10 SOCcer assignments for each job description to the coder for assessment.
 
+  <p align="center">
+    <a href="https://danielruss.github.io/SOCAssignWeb/SOCAssignWeb.html">
+      <img
+        src="./img/launch-socassignweb.svg"
+        alt="Launch SOCAssignWeb"
+        width="300">
+    </a>
+  </p>
+
 Before importing, the SOCcer results can be preprocessed to focus the expert review on a subset of job descriptions, such as job descriptions with low SOCcer scores.
 
 For each job description, experts can select up to 3 codes. The codes can be selected from the SOCcer output, a hierarchical list of all codes, or manually entered. A validation check ensures that only valid codes can be entered. SOCAssignWeb understands the US SOC2010 and NAICS2022 codes systems, which is the output of SOCccer and CLIPS, but it is extendable to other classification as needed.
